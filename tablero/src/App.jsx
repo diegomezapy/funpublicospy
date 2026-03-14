@@ -171,7 +171,19 @@ function App() {
   // =============== RENDERIZADOS DE GRÁFICOS ===============
   
   const renderGlobalCharts = () => {
-    if (globalData.length === 0) return null;
+    if (error && activeTab === 'general') {
+      return (
+        <div style={{textAlign: 'center', marginTop: '2rem'}}>
+          <div className="error-message">{error}</div>
+        </div>
+      );
+    }
+    if (globalData.length === 0) return (
+      <div style={{textAlign: 'center', margin: '2rem'}}>
+        <div className="spinner" style={{margin: '0 auto 1rem'}}></div>
+        <p>Cargando métricas globales...</p>
+      </div>
+    );
     
     const labels = globalData.map(d => `${d.anio}-${String(d.mes).padStart(2,'0')}`);
     const gastoTotal = globalData.map(d => d.monto_total_gastado);
