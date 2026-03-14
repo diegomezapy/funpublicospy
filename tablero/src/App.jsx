@@ -100,7 +100,15 @@ function App() {
       `;
       const result = await conn.query(query);
       
-      const rows = result.toArray().map(r => r.toJSON());
+      const rows = result.toArray().map(r => {
+        const row = r.toJSON();
+        for (let key in row) {
+          if (typeof row[key] === 'bigint') {
+            row[key] = Number(row[key]);
+          }
+        }
+        return row;
+      });
       setGlobalData(rows);
     } catch (err) {
       console.error(err);
@@ -126,7 +134,15 @@ function App() {
         ORDER BY anio, mes
       `;
       const result = await conn.query(query);
-      const rows = result.toArray().map(r => r.toJSON());
+      const rows = result.toArray().map(r => {
+        const row = r.toJSON();
+        for (let key in row) {
+          if (typeof row[key] === 'bigint') {
+            row[key] = Number(row[key]);
+          }
+        }
+        return row;
+      });
       
       if (rows.length === 0) {
         setPersonData([]);
