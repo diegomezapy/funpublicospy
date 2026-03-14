@@ -52,8 +52,8 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
 
-  // Estados visuales (Vista general vs Vista individual)
-  const [viewMode, setViewMode] = useState('global'); // 'global' | 'individual'
+  // Estados visuales (Pestañas)
+  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'particular'
   
   // Datos Globales
   const [globalData, setGlobalData] = useState([]);
@@ -71,11 +71,10 @@ function App() {
         const logger = new duckdb.ConsoleLogger();
         const mydb = new duckdb.AsyncDuckDB(logger, worker);
         await mydb.instantiate(bundle.mainModule, bundle.pthreadWorker);
-        
-        // Registrar archivos desde public folder
-        // En vite, public está expuesto en la raiz "/"
-        await mydb.registerFileURL('totales.parquet', '/data_procesada/totales_historicos.parquet', duckdb.DuckDBDataProtocol.HTTP, false);
-        await mydb.registerFileURL('nomina.parquet', '/data_procesada/nomina_completa_optimizada.parquet', duckdb.DuckDBDataProtocol.HTTP, false);
+        // Registrar archivos usando BASE_URL para soportar Github Pages
+        const baseUrl = import.meta.env.BASE_URL;
+        await mydb.registerFileURL('totales.parquet', `${baseUrl}data_procesada/totales_historicos.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
+        await mydb.registerFileURL('nomina.parquet', `${baseUrl}data_procesada/nomina_completa_optimizada.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
 
         setDb(mydb);
         setReady(true);
@@ -115,7 +114,6 @@ function App() {
     if (!cedulaInput) return;
     setError('');
     setSearching(true);
-    setViewMode('individual');
     
     // Consultar DuckDB para esa cédula específica
     const conn = await db.connect();
@@ -167,7 +165,6 @@ function App() {
   };
 
   const clearSearch = () => {
-    setViewMode('global');
     setCedulaInput('');
   };
 
@@ -234,9 +231,11 @@ function App() {
     if (personData.length === 0) {
       return (
         <div className="not-found">
-           No se encontraron registros para la cédula: <b>{cedulaInput}</b>
-           <br/>
-           <button className="btn-secondary" onClick={clearSearch}>Volver a vista general</button>
+           {cedulaInput ? (
+             <>No se encontraron registros para la cédula: <b>{cedulaInput}</b></>
+           ) : (
+             <>Ingrese un número de cédula para ver su historial en el Estado</>
+           )}
         </div>
       );
     }
@@ -288,7 +287,7 @@ function App() {
         </div>
         
         <div style={{textAlign: 'center', marginBottom: '2rem'}}>
-           <button className="btn-secondary" onClick={clearSearch}>Volver a vista general</button>
+           <button className="btn-secondary" onClick={clearSearch}>Limpiar Búsqueda</button>
         </div>
       </>
     );
@@ -309,30 +308,51 @@ function App() {
         <p>Monitor Ciudadano de Funcionarios Públicos</p>
       </header>
 
-      <section className="search-section">
-        <h2>Consultar Funcionario</h2>
-        <div className="search-box">
-          <input 
-            type="number" 
-            className="search-input" 
-            placeholder="Ingrese Número de Cédula (Ej: 1000905)" 
-            value={cedulaInput}
-            onChange={(e) => setCedulaInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-          />
-          <button 
-            className="search-btn" 
-            onClick={handleSearchClick}
-            disabled={!ready || searching}
-          >
-            {searching ? 'Buscando...' : 'Buscar'}
-          </button>
-        </div>
-        {error && <div className="error-message">{error}</div>}
-      </section>
+      <div className="tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'general' ? 'active' : ''}`}
+          onClick={() => setActiveTab('general')}
+        >
+          Reportes Generales
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'particular' ? 'active' : ''}`}
+          onClick={() => setActiveTab('particular')}
+        >
+          Reporte Particular (Por Cédula)
+        </button>
+      </div>
 
       <main>
-        {viewMode === 'global' ? renderGlobalCharts() : renderIndividualCharts()}
+        {activeTab === 'general' && renderGlobalCharts()}
+        
+        {activeTab === 'particular' && (
+          <>
+            <section className="search-section">
+              <h2>Consultar Funcionario</h2>
+              <div className="search-box">
+                <input 
+                  type="number" 
+                  className="search-input" 
+                  placeholder="Ingrese Número de Cédula (Ej: 1000905)" 
+                  value={cedulaInput}
+                  onChange={(e) => setCedulaInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                />
+                <button 
+                  className="search-btn" 
+                  onClick={handleSearchClick}
+                  disabled={!ready || searching}
+                >
+                  {searching ? 'Buscando...' : 'Buscar'}
+                </button>
+              </div>
+              {error && <div className="error-message">{error}</div>}
+            </section>
+            
+            {renderIndividualCharts()}
+          </>
+        )}
       </main>
     </div>
   );
