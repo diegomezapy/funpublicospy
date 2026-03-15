@@ -118,7 +118,10 @@ function App() {
                CAST(SUM(monto_total_gastado) AS BIGINT) as monto_total_gastado, 
                CAST(SUM(cantidad_funcionarios_unicos) AS BIGINT) as cantidad_funcionarios_unicos,
                CAST(SUM(hombres) AS BIGINT) as hombres, CAST(SUM(mujeres) AS BIGINT) as mujeres,
-               CAST(SUM(permanentes) AS BIGINT) as permanentes, CAST(SUM(contratados) AS BIGINT) as contratados
+               CAST(SUM(permanentes) AS BIGINT) as permanentes, CAST(SUM(contratados) AS BIGINT) as contratados,
+               CAST(AVG(salario_p10) AS BIGINT) as salario_p10,
+               CAST(AVG(salario_mediana) AS BIGINT) as salario_mediana,
+               CAST(AVG(salario_p90) AS BIGINT) as salario_p90
         FROM 'totales.parquet' 
         ${whereSQL}
         GROUP BY anio, mes, gran_grupo
@@ -280,6 +283,14 @@ function App() {
         
     const avgState = totalFunc > 0 ? (lastGasto / totalFunc) : 0;
     
+    const lastP10 = globalData
+        .filter(d => String(d.anio) === String(lastAnio) && String(d.mes).padStart(2,'0') === String(lastMes))
+        .reduce((sum, d) => sum + (d.salario_p10 * d.cantidad_funcionarios_unicos), 0) / (totalFunc || 1);
+        
+    const lastP90 = globalData
+        .filter(d => String(d.anio) === String(lastAnio) && String(d.mes).padStart(2,'0') === String(lastMes))
+        .reduce((sum, d) => sum + (d.salario_p90 * d.cantidad_funcionarios_unicos), 0) / (totalFunc || 1);
+    
     const colors = [
       '#4f46e5', '#10b981', '#f59e0b', '#ef4444', 
       '#8b5cf6', '#14b8a6', '#f43f5e', '#ec4899', '#06b6d4'
@@ -386,14 +397,22 @@ function App() {
 
     return (
       <>
-        <div className="kpi-grid">
+        <div className="kpi-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))'}}>
            <div className="kpi-card">
               <span className="kpi-title">Funcionarios Último Mes</span>
               <span className="kpi-value">{new Intl.NumberFormat('es-PY').format(totalFunc)}</span>
            </div>
            <div className="kpi-card">
-              <span className="kpi-title">Gasto Promedio per Cápita del Estado</span>
+              <span className="kpi-title">Ingreso Medio del Estado</span>
               <span className="kpi-value">{formatCurrency(avgState)}</span>
+           </div>
+           <div className="kpi-card" style={{borderLeft: '4px solid #10b981'}}>
+              <span className="kpi-title">Piso Salarial Representativo (P10)</span>
+              <span className="kpi-value" style={{color: '#10b981'}}>{formatCurrency(lastP10)}</span>
+           </div>
+           <div className="kpi-card" style={{borderLeft: '4px solid #f43f5e'}}>
+              <span className="kpi-title">Techo Salarial Funcionario (P90)</span>
+              <span className="kpi-value" style={{color: '#f43f5e'}}>{formatCurrency(lastP90)}</span>
            </div>
         </div>
 
@@ -456,6 +475,36 @@ function App() {
                  y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false } }
                }
             }} />
+          </div>
+        </div>
+        
+        <div className="data-table-container">
+          <div className="table-header">
+            <h3>Distribución Laboral Salarial ({lastAnio}-{String(lastMes).padStart(2,'0')})</h3>
+          </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Grupo/Sector Laboral</th>
+                  <th style={{textAlign: 'right'}}>N° Funcionarios</th>
+                  <th style={{textAlign: 'right'}}>Mediana Salarial (G)</th>
+                  <th style={{textAlign: 'right'}}>Techo Salarial P90 (G)</th>
+                  <th style={{textAlign: 'right'}}>Gasto Total (M)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lastMonthData.sort((a,b) => b.cantidad_funcionarios_unicos - a.cantidad_funcionarios_unicos).map((row, idx) => (
+                  <tr key={idx}>
+                    <td><strong>{row.gran_grupo}</strong></td>
+                    <td style={{textAlign: 'right'}}>{new Intl.NumberFormat('es-PY').format(row.cantidad_funcionarios_unicos)}</td>
+                    <td className="currency-cell" style={{textAlign: 'right'}}>{formatCurrency(row.salario_mediana)}</td>
+                    <td className="currency-cell" style={{textAlign: 'right', color: '#f43f5e'}}>{formatCurrency(row.salario_p90)}</td>
+                    <td style={{textAlign: 'right', fontWeight: '500', color: '#475569'}}>{formatCurrency(row.monto_total_gastado)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </>
@@ -541,6 +590,34 @@ function App() {
           <Line data={dataSueldo} options={{...commonChartOptions, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
         </div>
         
+        <div className="data-table-container">
+          <div className="table-header">
+            <h3>Histórico de Ingresos Puros en Planillas</h3>
+          </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Año</th>
+                  <th>Mes</th>
+                  <th>Institución Patrocinadora</th>
+                  <th style={{textAlign: 'right'}}>Cobro Devengado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...personData].reverse().map((row, idx) => (
+                  <tr key={idx}>
+                    <td style={{width: '80px', color: '#64748b'}}><strong>{row.anio}</strong></td>
+                    <td style={{width: '60px', color: '#64748b'}}>{String(row.mes).padStart(2, '0')}</td>
+                    <td>{row.entidad_principal}</td>
+                    <td className="currency-cell" style={{textAlign: 'right'}}>{formatCurrency(row.monto_total_mes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div style={{textAlign: 'center', marginBottom: '2rem'}}>
            <button className="btn-secondary" onClick={clearSearch}>Limpiar Búsqueda</button>
         </div>
