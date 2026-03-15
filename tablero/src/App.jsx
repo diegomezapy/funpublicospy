@@ -216,6 +216,39 @@ function App() {
 
   // =============== RENDERIZADOS DE GRÁFICOS ===============
   
+  const commonChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { font: { family: 'Inter', size: 13, weight: '500' }, color: '#475569' } },
+      tooltip: { 
+        backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+        titleFont: { family: 'Plus Jakarta Sans', size: 14 }, 
+        bodyFont: { family: 'Inter', size: 13 }, 
+        padding: 12, 
+        cornerRadius: 12,
+        boxPadding: 4
+      }
+    },
+    scales: {
+      x: { 
+        grid: { display: false }, 
+        ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b' },
+        border: { display: false }
+      },
+      y: { 
+        border: { display: false, dash: [4, 4] }, 
+        grid: { color: 'rgba(226, 232, 240, 0.6)', drawTicks: false }, 
+        ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b', padding: 10 } 
+      }
+    },
+    elements: {
+      bar: { borderRadius: 4, borderSkipped: false },
+      line: { tension: 0.4, borderJoinStyle: 'round' },
+      point: { radius: 2, hoverRadius: 6 }
+    }
+  };
+
   const renderGlobalCharts = () => {
     if (error && activeTab === 'general') {
       return (
@@ -387,17 +420,16 @@ function App() {
         <div className="chart-container">
           <h3 className="chart-title">Evolución Mediana Salarial (Sector Público)</h3>
           <p style={{textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginTop: '-10px', marginBottom: '15px'}}>La Mediana elimina el sesgo de salarios extremos</p>
-          <Line data={dataPromedio} options={{responsive: true, maintainAspectRatio: false}} />
+          <Line data={dataPromedio} options={commonChartOptions} />
         </div>
 
         <div className="chart-container">
           <h3 className="chart-title">Evolución Gasto Público Salarial Total (Apilado)</h3>
           <Bar data={dataGasto} options={{
-             responsive: true, 
-             maintainAspectRatio: false,
+             ...commonChartOptions,
              scales: {
-               x: { stacked: true },
-               y: { stacked: true }
+               x: { ...commonChartOptions.scales.x, stacked: true },
+               y: { ...commonChartOptions.scales.y, stacked: true }
              }
           }} />
         </div>
@@ -406,24 +438,22 @@ function App() {
           <div className="chart-container" style={{flex: 1, minWidth: '300px'}}>
             <h3 className="chart-title">Composición por Sexo (Último Mes)</h3>
             <Bar data={dataSexo} options={{
-               responsive: true, 
-               maintainAspectRatio: false,
+               ...commonChartOptions,
                indexAxis: 'y', // Hacerlo horizontal para que se lean bien los grupos
                scales: {
-                 x: { stacked: true },
-                 y: { stacked: true }
+                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' } },
+                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false } }
                }
             }} />
           </div>
           <div className="chart-container" style={{flex: 1, minWidth: '300px'}}>
             <h3 className="chart-title">Composición por Contrato (Último Mes)</h3>
             <Bar data={dataContrato} options={{
-               responsive: true, 
-               maintainAspectRatio: false,
+               ...commonChartOptions,
                indexAxis: 'y',
                scales: {
-                 x: { stacked: true },
-                 y: { stacked: true }
+                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' } },
+                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false } }
                }
             }} />
           </div>
@@ -508,7 +538,7 @@ function App() {
         
         <div className="chart-container">
           <h3 className="chart-title">Evolución de Ingresos Cédula {cedulaInput}</h3>
-          <Line data={dataSueldo} options={{responsive: true, maintainAspectRatio: false }} />
+          <Line data={dataSueldo} options={{...commonChartOptions, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
         </div>
         
         <div style={{textAlign: 'center', marginBottom: '2rem'}}>
