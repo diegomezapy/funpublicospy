@@ -151,14 +151,13 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                     contratados=('contratados', 'sum')
                 ).reset_index()
                 
-                loc_nomina = df.groupby(['anio', 'mes', 'codigoPersona']).agg(
-                    entidad_principal=('descripcionEntidad', 'first'),
+                loc_nomina = df.groupby(['anio', 'mes', 'codigoPersona', 'descripcionEntidad']).agg(
                     monto_total_mes=('montoDevengado', 'sum')
                 ).reset_index()
+                loc_nomina.rename(columns={'descripcionEntidad': 'entidad_principal'}, inplace=True)
                 
                 nomina_anio = pd.concat([nomina_anio, loc_nomina])
-                nomina_anio = nomina_anio.groupby(['anio', 'mes', 'codigoPersona']).agg(
-                    entidad_principal=('entidad_principal', 'first'),
+                nomina_anio = nomina_anio.groupby(['anio', 'mes', 'codigoPersona', 'entidad_principal']).agg(
                     monto_total_mes=('monto_total_mes', 'sum')
                 ).reset_index()
                 
@@ -210,8 +209,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     
     if nomina_paths:
         nomina_agrupada_global = pd.concat([pd.read_parquet(f) for f in nomina_paths])
-        nomina_agrupada_global = nomina_agrupada_global.groupby(['anio', 'mes', 'codigoPersona']).agg(
-            entidad_principal=('entidad_principal', 'first'),
+        nomina_agrupada_global = nomina_agrupada_global.groupby(['anio', 'mes', 'codigoPersona', 'entidad_principal']).agg(
             monto_total_mes=('monto_total_mes', 'sum')
         ).reset_index()
         
