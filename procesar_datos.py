@@ -43,8 +43,6 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     
     # Procesar año por año
     for anio, archivos_anio in sorted(archivos_por_anio.items()):
-        if anio not in ['2023', '2024']:
-            continue
         print(f"\n--- Procesando Año {anio} ({len(archivos_anio)} archivos) ---")
         totales_anio = pd.DataFrame()
         nomina_anio = pd.DataFrame()
