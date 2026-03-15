@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import glob
 import os
 
@@ -18,7 +19,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
         print("No se encontraron archivos CSV para procesar.")
         return
 
-    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado']
+    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado', 'cargo']
     
     # DataFrames Master Globales para ir acumulando las agrupaciones
     totales_globales = pd.DataFrame()
@@ -42,8 +43,39 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
             # Dropear nulos críticos
             df = df.dropna(subset=['anio', 'mes', 'codigoPersona', 'montoDevengado'])
             
-            # 1. Calcular agrupamiento local para Totales Históricos
-            loc_totales = df.groupby(['anio', 'mes']).agg(
+            # Clasificar Gran Grupo Laboral (Vectorizado para velocidad)
+            ent_upper = df['descripcionEntidad'].str.upper().fillna('')
+            cgo_upper = df['cargo'].str.upper().fillna('')
+            
+            cond_policia = ent_upper.str.contains('INTERIOR', na=False)
+            cond_militar = ent_upper.str.contains('DEFENSA NACIONAL', na=False)
+            cond_edu = ent_upper.str.contains('EDUCACI', na=False)
+            cond_docente = cgo_upper.str.contains('PROFESOR|DOCENTE|MAESTRO|CATEDRATICO|DIRECTOR|SUPERVISOR', na=False)
+            cond_univ = ent_upper.str.contains('UNIVERSIDAD|EDUCACION SUPERIOR|BELLAS ARTES', na=False)
+            cond_prof_univ = cgo_upper.str.contains('PROFESOR|DOCENTE|CATEDRATICO|INSTRUCTOR|INVESTIGADOR|AUXILIAR', na=False)
+            cond_salud = ent_upper.str.contains('SALUD|BIENESTAR SOCIAL|VIGILANCIA SANITARIA', na=False)
+            cond_personal_blanco = cgo_upper.str.contains('MEDIC|ENFERMER|ODONTOLOG|BIOQUIMIC|BLANCO|CIRUJAN|LICENCIAD|OBSTETRA|NUTRICIONISTA', na=False)
+            
+            conditions = [
+                cond_policia,
+                cond_militar,
+                cond_edu & cond_docente,
+                cond_univ & cond_prof_univ,
+                cond_salud & cond_personal_blanco
+            ]
+            
+            choices = [
+                'Fuerzas de Seguridad (Policía)',
+                'Fuerzas Militares',
+                'Docentes (Escuelas/Colegios)',
+                'Docentes Universitarios',
+                'Personal de Salud'
+            ]
+            
+            df['gran_grupo'] = np.select(conditions, choices, default='Administración General')
+            
+            # 1. Calcular agrupamiento local para Totales Históricos (ahora por gran_grupo también)
+            loc_totales = df.groupby(['anio', 'mes', 'gran_grupo']).agg(
                 monto_total_gastado=('montoDevengado', 'sum'),
                 cantidad_funcionarios_unicos=('codigoPersona', 'nunique'),
                 monto_promedio_x_count=('montoDevengado', 'sum') # Guardamos sumatoria para calcular average final exacto
@@ -51,7 +83,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
             
             # Concatenar al master y reagrupar para fusionar
             totales_globales = pd.concat([totales_globales, loc_totales])
-            totales_globales = totales_globales.groupby(['anio', 'mes']).agg(
+            totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo']).agg(
                 monto_total_gastado=('monto_total_gastado', 'sum'),
                 cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
                 monto_promedio_x_count=('monto_promedio_x_count', 'sum')

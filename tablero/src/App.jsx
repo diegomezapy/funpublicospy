@@ -94,7 +94,7 @@ function App() {
     try {
       // Leer el parquet hiper ligero agrupado globalmente
       const query = `
-        SELECT anio, mes, monto_total_gastado, monto_promedio, cantidad_funcionarios_unicos 
+        SELECT anio, mes, gran_grupo, monto_total_gastado, monto_promedio, cantidad_funcionarios_unicos 
         FROM 'totales.parquet' 
         ORDER BY anio, mes
       `;
@@ -205,34 +205,76 @@ function App() {
       </div>
     );
     
-    const labels = globalData.map(d => `${d.anio}-${String(d.mes).padStart(2,'0')}`);
-    const gastoTotal = globalData.map(d => d.monto_total_gastado);
-    const salariosMedios = globalData.map(d => d.monto_promedio);
-    const funcionarios = globalData.map(d => d.cantidad_funcionarios_unicos);
+    const uniqueLabels = Array.from(new Set(globalData.map(d => `${d.anio}-${String(d.mes).padStart(2,'0')}`))).sort();
+    const uniqueGroups = Array.from(new Set(globalData.map(d => d.gran_grupo)));
     
+    const lastLabel = uniqueLabels[uniqueLabels.length - 1];
+    const [lastAnio, lastMes] = lastLabel ? lastLabel.split('-') : [new Date().getFullYear(), 1];
+    
+    const totalFunc = globalData
+        .filter(d => String(d.anio) === String(lastAnio) && String(d.mes).padStart(2,'0') === String(lastMes))
+        .reduce((sum, d) => sum + d.cantidad_funcionarios_unicos, 0);
+
+    const lastGasto = globalData
+        .filter(d => String(d.anio) === String(lastAnio) && String(d.mes).padStart(2,'0') === String(lastMes))
+        .reduce((sum, d) => sum + d.monto_total_gastado, 0);
+        
+    const avgState = totalFunc > 0 ? (lastGasto / totalFunc) : 0;
+    
+    const colors = [
+      '#4f46e5', '#10b981', '#f59e0b', '#ef4444', 
+      '#8b5cf6', '#14b8a6', '#f43f5e', '#ec4899', '#06b6d4'
+    ];
+
+    const datasetsGasto = uniqueGroups.map((grupo, index) => {
+      const data = uniqueLabels.map(label => {
+        const [anio, mes] = label.split('-');
+        const row = globalData.find(d => 
+          String(d.anio) === anio && 
+          String(d.mes).padStart(2, '0') === mes && 
+          d.gran_grupo === grupo
+        );
+        return row ? row.monto_total_gastado : 0;
+      });
+      const color = colors[index % colors.length];
+      return {
+        label: grupo,
+        data,
+        backgroundColor: color,
+        stack: 'Stack 0',
+      };
+    });
+
+    const datasetsPromedio = uniqueGroups.map((grupo, index) => {
+      const data = uniqueLabels.map(label => {
+        const [anio, mes] = label.split('-');
+        const row = globalData.find(d => 
+          String(d.anio) === anio && 
+          String(d.mes).padStart(2, '0') === mes && 
+          d.gran_grupo === grupo
+        );
+        return row ? row.monto_promedio : null;
+      });
+      const color = colors[index % colors.length];
+      return {
+        label: grupo,
+        data,
+        borderColor: color,
+        backgroundColor: color + '33',
+        fill: false,
+        tension: 0.4,
+        spanGaps: true
+      };
+    });
+
     const dataGasto = {
-      labels,
-      datasets: [
-        {
-          label: 'Gasto Total del Estado (Gs)',
-          data: gastoTotal,
-          backgroundColor: 'rgba(79, 70, 229, 0.6)',
-        }
-      ]
+      labels: uniqueLabels,
+      datasets: datasetsGasto
     };
 
     const dataPromedio = {
-      labels,
-      datasets: [
-        {
-          label: 'Sueldo Promedio (Gs)',
-          data: salariosMedios,
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.2)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
+      labels: uniqueLabels,
+      datasets: datasetsPromedio
     };
 
     return (
@@ -240,19 +282,26 @@ function App() {
         <div className="kpi-grid">
            <div className="kpi-card">
               <span className="kpi-title">Funcionarios Último Mes</span>
-              <span className="kpi-value">{new Intl.NumberFormat('es-PY').format(funcionarios[funcionarios.length-1])}</span>
+              <span className="kpi-value">{new Intl.NumberFormat('es-PY').format(totalFunc)}</span>
            </div>
            <div className="kpi-card">
               <span className="kpi-title">Sueldo Promedio del Estado</span>
-              <span className="kpi-value">{formatCurrency(salariosMedios[salariosMedios.length-1] || 0)}</span>
+              <span className="kpi-value">{formatCurrency(avgState)}</span>
            </div>
         </div>
         <div className="chart-container">
-          <h3 className="chart-title">Evolución Gasto Público Salarial</h3>
-          <Bar data={dataGasto} options={{responsive: true, maintainAspectRatio: false }} />
+          <h3 className="chart-title">Evolución Gasto Público Salarial (Apilado)</h3>
+          <Bar data={dataGasto} options={{
+             responsive: true, 
+             maintainAspectRatio: false,
+             scales: {
+               x: { stacked: true },
+               y: { stacked: true }
+             }
+          }} />
         </div>
         <div className="chart-container">
-          <h3 className="chart-title">Evolución Sueldo Promedio</h3>
+          <h3 className="chart-title">Evolución Sueldo Promedio por Grupo Laboral</h3>
           <Line data={dataPromedio} options={{responsive: true, maintainAspectRatio: false}} />
         </div>
       </>
