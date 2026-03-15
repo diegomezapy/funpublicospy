@@ -164,11 +164,15 @@ function App() {
         const ultimo_mes = rows[rows.length - 1].monto_total_mes;
         const aumento = ((ultimo_mes - primer_mes) / (primer_mes || 1)) * 100;
         
+        const ultimo_anio = rows[rows.length - 1].anio;
+        const ultimo_mes_val = rows[rows.length - 1].mes;
+        const entidades_actuales = Array.from(new Set(rows.filter(r => r.anio === ultimo_anio && r.mes === ultimo_mes_val).map(r => r.entidad_principal))).join(' / ');
+
         setPersonKpis({
           max_salario,
           promedio: sum_salarios / rows.length,
           aumento_pct: aumento,
-          entidad_actual: rows[rows.length - 1].entidad_principal
+          entidad_actual: entidades_actuales
         });
       }
     } catch (err) {
@@ -268,22 +272,42 @@ function App() {
       );
     }
     
-    const labels = personData.map(d => `${d.anio}-${String(d.mes).padStart(2,'0')}`);
-    const sueldos = personData.map(d => d.monto_total_mes);
+    const uniqueLabels = Array.from(new Set(personData.map(d => `${d.anio}-${String(d.mes).padStart(2,'0')}`))).sort();
+    const uniqueEntities = Array.from(new Set(personData.map(d => d.entidad_principal)));
+
+    const colors = [
+      '#4f46e5', '#10b981', '#f59e0b', '#ef4444', 
+      '#8b5cf6', '#14b8a6', '#f43f5e', '#ec4899', '#06b6d4'
+    ];
+
+    const datasets = uniqueEntities.map((entidad, index) => {
+      const data = uniqueLabels.map(label => {
+        const [anio, mes] = label.split('-');
+        const row = personData.find(d => 
+          String(d.anio) === anio && 
+          String(d.mes).padStart(2, '0') === mes && 
+          d.entidad_principal === entidad
+        );
+        return row ? row.monto_total_mes : null;
+      });
+      
+      const color = colors[index % colors.length];
+
+      return {
+        label: entidad,
+        data,
+        borderColor: color,
+        backgroundColor: color + '33',
+        fill: false,
+        pointRadius: 4,
+        tension: 0.1,
+        spanGaps: true
+      };
+    });
     
     const dataSueldo = {
-      labels,
-      datasets: [
-        {
-          label: 'Ingreso Total (Sueldo + Extras) (Gs)',
-          data: sueldos,
-          borderColor: '#4f46e5',
-          backgroundColor: 'rgba(79, 70, 229, 0.2)',
-          fill: true,
-          pointRadius: 4,
-          tension: 0.1
-        }
-      ]
+      labels: uniqueLabels,
+      datasets
     };
     
     // Detectar anomalías (aumentos bruscos)
