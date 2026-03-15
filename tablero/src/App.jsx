@@ -58,6 +58,9 @@ function App() {
   // Datos Globales
   const [globalData, setGlobalData] = useState([]);
   
+  // Filtros Globales
+  const [filtroSexo, setFiltroSexo] = useState('Todos');
+  const [filtroContrato, setFiltroContrato] = useState('Todos');
   // Datos Individuales
   const [personData, setPersonData] = useState([]);
   const [personKpis, setPersonKpis] = useState(null);
@@ -85,7 +88,7 @@ function App() {
         setReady(true);
         
         // Cargar vista global inicialmente
-        await loadGlobalData(mydb);
+        await loadGlobalData(mydb, 'Todos', 'Todos');
       } catch (err) {
         console.error("Error inicializando db:", err);
         setError("Error cargando la base de datos.");
@@ -94,14 +97,31 @@ function App() {
     initDb();
   }, []);
 
-  const loadGlobalData = async (database) => {
+  useEffect(() => {
+    if (db && ready) {
+       loadGlobalData(db, filtroSexo, filtroContrato);
+    }
+  }, [filtroSexo, filtroContrato]);
+
+  const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato) => {
     const conn = await database.connect();
     try {
+      let whereClauses = [];
+      if (s !== 'Todos') whereClauses.push(`sexo_canon = '${s}'`);
+      if (c !== 'Todos') whereClauses.push(`tipo_contrato = '${c}'`);
+      
+      const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
       // Leer el parquet hiper ligero agrupado globalmente
       const query = `
-        SELECT anio, mes, gran_grupo, monto_total_gastado, monto_promedio, cantidad_funcionarios_unicos, 
-               salario_mediana, salario_p10, salario_p90, hombres, mujeres, permanentes, contratados
+        SELECT anio, mes, gran_grupo, 
+               CAST(SUM(monto_total_gastado) AS BIGINT) as monto_total_gastado, 
+               CAST(SUM(cantidad_funcionarios_unicos) AS BIGINT) as cantidad_funcionarios_unicos,
+               CAST(SUM(hombres) AS BIGINT) as hombres, CAST(SUM(mujeres) AS BIGINT) as mujeres,
+               CAST(SUM(permanentes) AS BIGINT) as permanentes, CAST(SUM(contratados) AS BIGINT) as contratados
         FROM 'totales.parquet' 
+        ${whereSQL}
+        GROUP BY anio, mes, gran_grupo
         ORDER BY anio, mes
       `;
       const result = await conn.query(query);
@@ -342,6 +362,26 @@ function App() {
               <span className="kpi-title">Gasto Promedio per Cápita del Estado</span>
               <span className="kpi-value">{formatCurrency(avgState)}</span>
            </div>
+        </div>
+
+        <div className="filtros-panel" style={{display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '1.5rem', flexWrap: 'wrap'}}>
+          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+            <label style={{color: '#334155'}}><strong>Sexo:</strong></label>
+            <select value={filtroSexo} onChange={(e) => setFiltroSexo(e.target.value)} style={{padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+              <option value="Todos">Todos</option>
+              <option value="Hombres">Hombres</option>
+              <option value="Mujeres">Mujeres</option>
+            </select>
+          </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+            <label style={{color: '#334155'}}><strong>Vínculo:</strong></label>
+            <select value={filtroContrato} onChange={(e) => setFiltroContrato(e.target.value)} style={{padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+              <option value="Todos">Todos</option>
+              <option value="Permanente">Nombrado / Permanente</option>
+              <option value="Contratado">Contratado</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </div>
         </div>
         
         <div className="chart-container">

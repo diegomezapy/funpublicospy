@@ -112,15 +112,19 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 agrup_persona['sexo_canon'] = agrup_persona['sexo'].str.upper().str.strip().replace({
                     'M': 'Hombres', 'MASCULINO': 'Hombres', 'H': 'Hombres', 'HOMBRE': 'Hombres',
                     'F': 'Mujeres', 'FEMENINO': 'Mujeres', 'MUJER': 'Mujeres'
-                })
+                }).fillna('Desconocido')
                 agrup_persona['is_hombres'] = (agrup_persona['sexo_canon'] == 'Hombres')
                 agrup_persona['is_mujeres'] = (agrup_persona['sexo_canon'] == 'Mujeres')
 
                 agrup_persona['contrato_canon'] = agrup_persona['tipoPersonal'].str.upper().fillna('DESCONOCIDO')
-                agrup_persona['is_permanente'] = agrup_persona['contrato_canon'].str.contains('PERMANENTE|COMISIONAD', na=False)
-                agrup_persona['is_contratado'] = agrup_persona['contrato_canon'].str.contains('CONTRATADO', na=False)
+                agrup_persona['tipo_contrato'] = 'Otros'
+                agrup_persona.loc[agrup_persona['contrato_canon'].str.contains('CONTRATADO', na=False), 'tipo_contrato'] = 'Contratado'
+                agrup_persona.loc[agrup_persona['contrato_canon'].str.contains('PERMANENTE|COMISIONAD', na=False), 'tipo_contrato'] = 'Permanente'
+                
+                agrup_persona['is_permanente'] = (agrup_persona['tipo_contrato'] == 'Permanente')
+                agrup_persona['is_contratado'] = (agrup_persona['tipo_contrato'] == 'Contratado')
 
-                loc_totales = agrup_persona.groupby(['anio', 'mes', 'gran_grupo']).agg(
+                loc_totales = agrup_persona.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
                     monto_total_gastado=('monto_total_persona', 'sum'),
                     cantidad_funcionarios_unicos=('codigoPersona', 'nunique'),
                     monto_promedio_x_count=('monto_total_persona', 'sum'),
@@ -134,7 +138,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 ).reset_index()
                 
                 totales_anio = pd.concat([totales_anio, loc_totales])
-                totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo']).agg(
+                totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
                     monto_total_gastado=('monto_total_gastado', 'sum'),
                     cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
                     monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
@@ -186,7 +190,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     
     if totales_paths:
         totales_globales = pd.concat([pd.read_parquet(f) for f in totales_paths])
-        totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo']).agg(
+        totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
             monto_total_gastado=('monto_total_gastado', 'sum'),
             cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
             monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
