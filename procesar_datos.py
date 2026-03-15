@@ -43,6 +43,8 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     
     # Procesar año por año
     for anio, archivos_anio in sorted(archivos_por_anio.items()):
+        if anio not in ['2023', '2024']:
+            continue
         print(f"\n--- Procesando Año {anio} ({len(archivos_anio)} archivos) ---")
         totales_anio = pd.DataFrame()
         nomina_anio = pd.DataFrame()
@@ -78,6 +80,12 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 df['montoDevengado'] = pd.to_numeric(df['montoDevengado'], errors='coerce')
                 
                 df = df.dropna(subset=['anio', 'mes', 'codigoPersona', 'montoDevengado'])
+                
+                # Excluir Mes 13 (Aguinaldo) porque rompe la estética de la curva salarial base
+                df = df[df['mes'] != 13]
+                
+                # Eliminar registros clonados idénticos en caso de que SFP haya publicado dobles
+                df = df.drop_duplicates()
                 
                 texto_busqueda = df['descripcionEntidad'].str.upper().fillna('') + ' ' + df['cargo'].str.upper().fillna('')
                 unique_text = texto_busqueda.unique()
