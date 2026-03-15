@@ -74,7 +74,12 @@ function App() {
         // Registrar archivos usando BASE_URL para soportar Github Pages
         const baseUrl = import.meta.env.BASE_URL;
         await mydb.registerFileURL('totales.parquet', `${baseUrl}data_procesada/totales_historicos.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
-        await mydb.registerFileURL('nomina.parquet', `${baseUrl}data_procesada/nomina_completa_optimizada.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
+        
+        // Registrar Parquets por año (2013 y de 2015 a 2026)
+        const anios = [2013, ...Array.from({length: 2026 - 2015 + 1}, (_, i) => 2015 + i)];
+        for (const anio of anios) {
+          await mydb.registerFileURL(`nomina_${anio}.parquet`, `${baseUrl}data_procesada/nomina_${anio}.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
+        }
 
         setDb(mydb);
         setReady(true);
@@ -124,13 +129,13 @@ function App() {
     setError('');
     setSearching(true);
     
-    // Consultar DuckDB para esa cédula específica
+    // Consultar DuckDB para esa cédula específica escaneando todos los Parquets Anuales
     const conn = await db.connect();
     try {
-      // Nota: cedula es CAST(string) en parquet
+      // GLOB function de DuckDB o arreglo con pattern
       const query = `
         SELECT anio, mes, entidad_principal, monto_total_mes 
-        FROM 'nomina.parquet' 
+        FROM read_parquet('nomina_*.parquet') 
         WHERE cedula = '${cedulaInput}'
         ORDER BY anio, mes
       `;

@@ -215,8 +215,15 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
         nomina_agrupada_global['cedula'] = nomina_agrupada_global['cedula'].astype('string')
         nomina_agrupada_global['entidad_principal'] = nomina_agrupada_global['entidad_principal'].astype('category')
         
-        nomina_agrupada_global.to_parquet(os.path.join(output_dir, 'nomina_completa_optimizada.parquet'), index=False)
-        print("-> Exportado nomina_completa_optimizada.parquet")
+        # Guardar particionado por año para eludir limite de Github Pages (100MB)
+        anios_unicos = nomina_agrupada_global['anio'].unique()
+        for a in anios_unicos:
+            subset = nomina_agrupada_global[nomina_agrupada_global['anio'] == a]
+            out_file = os.path.join(output_dir, f'nomina_{a}.parquet')
+            subset.to_parquet(out_file, index=False, compression='zstd')
+            print(f"-> Exportado {out_file}")
+            
+        print("-> Exportación de nóminas anuales particionadas finalizada.")
         
     print("¡Proceso Finalizado con Éxito!")
 
