@@ -17,9 +17,6 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
 
     # Buscar todos los archivos de nómina
     archivos_csv = glob.glob(os.path.join(input_dir, 'nomina_*.csv'))
-    archivo_2013 = os.path.join(input_dir, 'funpub2013.csv')
-    if os.path.exists(archivo_2013):
-        archivos_csv.append(archivo_2013)
         
     print(f"Archivos encontrados: {len(archivos_csv)}")
     if len(archivos_csv) == 0:
