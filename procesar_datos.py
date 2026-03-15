@@ -43,36 +43,32 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
             # Dropear nulos críticos
             df = df.dropna(subset=['anio', 'mes', 'codigoPersona', 'montoDevengado'])
             
-            # Clasificar Gran Grupo Laboral (Vectorizado para velocidad)
-            ent_upper = df['descripcionEntidad'].str.upper().fillna('')
-            cgo_upper = df['cargo'].str.upper().fillna('')
+            # Clasificar Gran Grupo Laboral (Vectorizado para velocidad reflejando R script de Trayectorias)
+            texto_busqueda = df['descripcionEntidad'].str.upper().fillna('') + ' ' + df['cargo'].str.upper().fillna('')
             
-            cond_policia = ent_upper.str.contains('INTERIOR', na=False)
-            cond_militar = ent_upper.str.contains('DEFENSA NACIONAL', na=False)
-            cond_edu = ent_upper.str.contains('EDUCACI', na=False)
-            cond_docente = cgo_upper.str.contains('PROFESOR|DOCENTE|MAESTRO|CATEDRATICO|DIRECTOR|SUPERVISOR', na=False)
-            cond_univ = ent_upper.str.contains('UNIVERSIDAD|EDUCACION SUPERIOR|BELLAS ARTES', na=False)
-            cond_prof_univ = cgo_upper.str.contains('PROFESOR|DOCENTE|CATEDRATICO|INSTRUCTOR|INVESTIGADOR|AUXILIAR', na=False)
-            cond_salud = ent_upper.str.contains('SALUD|BIENESTAR SOCIAL|VIGILANCIA SANITARIA', na=False)
-            cond_personal_blanco = cgo_upper.str.contains('MEDIC|ENFERMER|ODONTOLOG|BIOQUIMIC|BLANCO|CIRUJAN|LICENCIAD|OBSTETRA|NUTRICIONISTA', na=False)
+            cond_magisterio = texto_busqueda.str.contains(r'MAGISTER|DOCENTE(?!\sUNIVERS)|EDUCACION|MEC', regex=True, na=False)
+            cond_judicial = texto_busqueda.str.contains(r'JUSTIC|JUDICIAL|CORTE|FISCAL|MINISTERIO\sPUBLICO|MAGISTR', regex=True, na=False)
+            cond_universitario = texto_busqueda.str.contains(r'UNIVERS|UNA|FACULTAD|RECTORAD|DOCENTE\sUNIVERS', regex=True, na=False)
+            cond_fuerzas_armadas = texto_busqueda.str.contains(r'DEFENSA|EJERCITO|ARMADA|AERONAUT|MILITAR|FUERZAS\sARMAD', regex=True, na=False)
+            cond_policia = texto_busqueda.str.contains(r'POLIC|INTERIOR|COMISAR|CADETE|BOMBER', regex=True, na=False)
             
             conditions = [
-                cond_policia,
-                cond_militar,
-                cond_edu & cond_docente,
-                cond_univ & cond_prof_univ,
-                cond_salud & cond_personal_blanco
+                cond_magisterio,
+                cond_judicial,
+                cond_universitario,
+                cond_fuerzas_armadas,
+                cond_policia
             ]
             
             choices = [
-                'Fuerzas de Seguridad (Policía)',
-                'Fuerzas Militares',
-                'Docentes (Escuelas/Colegios)',
+                'Magisterio Nacional',
+                'Magistrados Judiciales',
                 'Docentes Universitarios',
-                'Personal de Salud'
+                'Fuerzas Armadas',
+                'Fuerzas Policiales'
             ]
             
-            df['gran_grupo'] = np.select(conditions, choices, default='Administración General')
+            df['gran_grupo'] = np.select(conditions, choices, default='Administración Pública')
             
             # 1. Calcular agrupamiento local para Totales Históricos (ahora por gran_grupo también)
             loc_totales = df.groupby(['anio', 'mes', 'gran_grupo']).agg(
