@@ -94,7 +94,8 @@ function App() {
     try {
       // Leer el parquet hiper ligero agrupado globalmente
       const query = `
-        SELECT anio, mes, gran_grupo, monto_total_gastado, monto_promedio, cantidad_funcionarios_unicos 
+        SELECT anio, mes, gran_grupo, monto_total_gastado, monto_promedio, cantidad_funcionarios_unicos, 
+               salario_mediana, salario_p10, salario_p90, hombres, mujeres, permanentes, contratados
         FROM 'totales.parquet' 
         ORDER BY anio, mes
       `;
@@ -253,7 +254,7 @@ function App() {
           String(d.mes).padStart(2, '0') === mes && 
           d.gran_grupo === grupo
         );
-        return row ? row.monto_promedio : null;
+        return row ? row.salario_mediana : null;
       });
       const color = colors[index % colors.length];
       return {
@@ -277,6 +278,54 @@ function App() {
       datasets: datasetsPromedio
     };
 
+    // --- Datos de Composición (Último Mes) ---
+    const lastMonthData = globalData.filter(d => String(d.anio) === String(lastAnio) && String(d.mes).padStart(2,'0') === String(lastMes));
+    const labelsGroups = uniqueGroups;
+
+    const dataSexo = {
+      labels: labelsGroups,
+      datasets: [
+        {
+          label: 'Hombres',
+          data: labelsGroups.map(grupo => {
+            const row = lastMonthData.find(d => d.gran_grupo === grupo);
+            return row ? row.hombres : 0;
+          }),
+          backgroundColor: '#3b82f6',
+        },
+        {
+          label: 'Mujeres',
+          data: labelsGroups.map(grupo => {
+            const row = lastMonthData.find(d => d.gran_grupo === grupo);
+            return row ? row.mujeres : 0;
+          }),
+          backgroundColor: '#ec4899',
+        }
+      ]
+    };
+
+    const dataContrato = {
+      labels: labelsGroups,
+      datasets: [
+        {
+          label: 'Permanentes',
+          data: labelsGroups.map(grupo => {
+            const row = lastMonthData.find(d => d.gran_grupo === grupo);
+            return row ? row.permanentes : 0;
+          }),
+          backgroundColor: '#10b981',
+        },
+        {
+          label: 'Contratados',
+          data: labelsGroups.map(grupo => {
+            const row = lastMonthData.find(d => d.gran_grupo === grupo);
+            return row ? row.contratados : 0;
+          }),
+          backgroundColor: '#f59e0b',
+        }
+      ]
+    };
+
     return (
       <>
         <div className="kpi-grid">
@@ -285,12 +334,19 @@ function App() {
               <span className="kpi-value">{new Intl.NumberFormat('es-PY').format(totalFunc)}</span>
            </div>
            <div className="kpi-card">
-              <span className="kpi-title">Sueldo Promedio del Estado</span>
+              <span className="kpi-title">Gasto Promedio per Cápita del Estado</span>
               <span className="kpi-value">{formatCurrency(avgState)}</span>
            </div>
         </div>
+        
         <div className="chart-container">
-          <h3 className="chart-title">Evolución Gasto Público Salarial (Apilado)</h3>
+          <h3 className="chart-title">Evolución Mediana Salarial (Sector Público)</h3>
+          <p style={{textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginTop: '-10px', marginBottom: '15px'}}>La Mediana elimina el sesgo de salarios extremos</p>
+          <Line data={dataPromedio} options={{responsive: true, maintainAspectRatio: false}} />
+        </div>
+
+        <div className="chart-container">
+          <h3 className="chart-title">Evolución Gasto Público Salarial Total (Apilado)</h3>
           <Bar data={dataGasto} options={{
              responsive: true, 
              maintainAspectRatio: false,
@@ -300,9 +356,32 @@ function App() {
              }
           }} />
         </div>
-        <div className="chart-container">
-          <h3 className="chart-title">Evolución Sueldo Promedio por Grupo Laboral</h3>
-          <Line data={dataPromedio} options={{responsive: true, maintainAspectRatio: false}} />
+        
+        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+          <div className="chart-container" style={{flex: 1, minWidth: '300px'}}>
+            <h3 className="chart-title">Composición por Sexo (Último Mes)</h3>
+            <Bar data={dataSexo} options={{
+               responsive: true, 
+               maintainAspectRatio: false,
+               indexAxis: 'y', // Hacerlo horizontal para que se lean bien los grupos
+               scales: {
+                 x: { stacked: true },
+                 y: { stacked: true }
+               }
+            }} />
+          </div>
+          <div className="chart-container" style={{flex: 1, minWidth: '300px'}}>
+            <h3 className="chart-title">Composición por Contrato (Último Mes)</h3>
+            <Bar data={dataContrato} options={{
+               responsive: true, 
+               maintainAspectRatio: false,
+               indexAxis: 'y',
+               scales: {
+                 x: { stacked: true },
+                 y: { stacked: true }
+               }
+            }} />
+          </div>
         </div>
       </>
     );

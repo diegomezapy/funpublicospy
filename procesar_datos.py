@@ -19,7 +19,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
         print("No se encontraron archivos CSV para procesar.")
         return
 
-    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado', 'cargo']
+    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado', 'cargo', 'sexo', 'tipoPersonal']
     
     # DataFrames Master Globales para ir acumulando las agrupaciones
     totales_globales = pd.DataFrame()
@@ -70,19 +70,60 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
             
             df['gran_grupo'] = np.select(conditions, choices, default='Administración Pública')
             
-            # 1. Calcular agrupamiento local para Totales Históricos (ahora por gran_grupo también)
-            loc_totales = df.groupby(['anio', 'mes', 'gran_grupo']).agg(
-                monto_total_gastado=('montoDevengado', 'sum'),
+            
+            # 1. Calcular agrupamiento local para Totales Históricos
+            def p10(x): return x.quantile(0.10)
+            def p50(x): return x.median()
+            def p90(x): return x.quantile(0.90)
+
+            # Para que el cálculo sea representativo a nivel persona, primero agrupamos por persona
+            agrup_persona = df.groupby(['anio', 'mes', 'gran_grupo', 'codigoPersona', 'sexo', 'tipoPersonal'], dropna=False).agg(
+                monto_total_persona=('montoDevengado', 'sum')
+            ).reset_index()
+
+            # Demografía: cantidad por sexo
+            agrup_persona['sexo_canon'] = agrup_persona['sexo'].str.upper().str.strip().replace({
+                'M': 'Hombres', 'MASCULINO': 'Hombres', 'H': 'Hombres', 'HOMBRE': 'Hombres',
+                'F': 'Mujeres', 'FEMENINO': 'Mujeres', 'MUJER': 'Mujeres'
+            })
+            agrup_persona['is_hombres'] = (agrup_persona['sexo_canon'] == 'Hombres')
+            agrup_persona['is_mujeres'] = (agrup_persona['sexo_canon'] == 'Mujeres')
+
+            # Demografía: cantidad por contrato
+            agrup_persona['contrato_canon'] = agrup_persona['tipoPersonal'].str.upper().fillna('DESCONOCIDO')
+            agrup_persona['is_permanente'] = agrup_persona['contrato_canon'].str.contains('PERMANENTE|COMISIONAD', na=False)
+            agrup_persona['is_contratado'] = agrup_persona['contrato_canon'].str.contains('CONTRATADO', na=False)
+
+            # Ahora calculamos las estadísticas demográficas por grupo
+            # Nota: para simplificar agrupamos en base a los totales
+            loc_totales = agrup_persona.groupby(['anio', 'mes', 'gran_grupo']).agg(
+                monto_total_gastado=('monto_total_persona', 'sum'),
                 cantidad_funcionarios_unicos=('codigoPersona', 'nunique'),
-                monto_promedio_x_count=('montoDevengado', 'sum') # Guardamos sumatoria para calcular average final exacto
+                monto_promedio_x_count=('monto_total_persona', 'sum'),
+                salario_mediana=('monto_total_persona', p50),
+                salario_p10=('monto_total_persona', p10),
+                salario_p90=('monto_total_persona', p90),
+                hombres=('is_hombres', 'sum'),
+                mujeres=('is_mujeres', 'sum'),
+                permanentes=('is_permanente', 'sum'),
+                contratados=('is_contratado', 'sum')
             ).reset_index()
             
             # Concatenar al master y reagrupar para fusionar
+            # (En el script global tendremos que manejar promedios ponderados de las medianas si se solapan en Python, pero dado que procesamos por archivo mensual, mes a mes es exacto)
             totales_globales = pd.concat([totales_globales, loc_totales])
             totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo']).agg(
                 monto_total_gastado=('monto_total_gastado', 'sum'),
                 cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
-                monto_promedio_x_count=('monto_promedio_x_count', 'sum')
+                monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
+                # Las medianas exactas requerirían todos los datos en RAM, para aproximarlo promediamos las medianas si de casualidad hay varios archivos para el mismo mes
+                salario_mediana=('salario_mediana', 'mean'), 
+                salario_p10=('salario_p10', 'mean'),
+                salario_p90=('salario_p90', 'mean'),
+                hombres=('hombres', 'sum'),
+                mujeres=('mujeres', 'sum'),
+                permanentes=('permanentes', 'sum'),
+                contratados=('contratados', 'sum')
             ).reset_index()
             
             # 2. Calcular agrupamiento local por Empleado
