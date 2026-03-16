@@ -36,7 +36,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
             anio = 'UNKNOWN'
         archivos_por_anio[anio].append(arch)
 
-    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado', 'cargo', 'sexo', 'tipoPersonal']
+    columnas_usar = ['anio', 'mes', 'descripcionEntidad', 'codigoPersona', 'montoDevengado', 'cargo', 'sexo', 'tipoPersonal', 'concepto']
     
     # Procesar año por año
     for anio, archivos_anio in sorted(archivos_por_anio.items()):
@@ -101,13 +101,18 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 mapping = unique_df.set_index('texto')['gran_grupo'].to_dict()
                 df['gran_grupo'] = texto_busqueda.map(mapping)
                 
+                df['concepto'] = df['concepto'].fillna('NO ESPECIFICADO').str.strip().str.upper()
+                df['descripcionEntidad'] = df['descripcionEntidad'].fillna('DESCONOCIDA').str.strip().str.upper()
+                
                 def p10(x): return x.quantile(0.10)
                 def p50(x): return x.median()
                 def p90(x): return x.quantile(0.90)
 
-                agrup_persona = df.groupby(['anio', 'mes', 'gran_grupo', 'codigoPersona', 'sexo', 'tipoPersonal'], dropna=False).agg(
+                agrup_persona = df.groupby(['anio', 'mes', 'gran_grupo', 'codigoPersona', 'sexo', 'tipoPersonal', 'descripcionEntidad', 'concepto'], dropna=False).agg(
                     monto_total_persona=('montoDevengado', 'sum')
                 ).reset_index()
+                
+                agrup_persona.rename(columns={'descripcionEntidad': 'entidad_principal'}, inplace=True)
 
                 agrup_persona['sexo_canon'] = agrup_persona['sexo'].str.upper().str.strip().replace({
                     'M': 'Hombres', 'MASCULINO': 'Hombres', 'H': 'Hombres', 'HOMBRE': 'Hombres',
@@ -124,7 +129,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 agrup_persona['is_permanente'] = (agrup_persona['tipo_contrato'] == 'Permanente')
                 agrup_persona['is_contratado'] = (agrup_persona['tipo_contrato'] == 'Contratado')
 
-                loc_totales = agrup_persona.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
+                loc_totales = agrup_persona.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato', 'entidad_principal', 'concepto']).agg(
                     monto_total_gastado=('monto_total_persona', 'sum'),
                     cantidad_funcionarios_unicos=('codigoPersona', 'nunique'),
                     monto_promedio_x_count=('monto_total_persona', 'sum'),
@@ -138,7 +143,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 ).reset_index()
                 
                 totales_anio = pd.concat([totales_anio, loc_totales])
-                totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
+                totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato', 'entidad_principal', 'concepto']).agg(
                     monto_total_gastado=('monto_total_gastado', 'sum'),
                     cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
                     monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
@@ -189,7 +194,7 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     
     if totales_paths:
         totales_globales = pd.concat([pd.read_parquet(f) for f in totales_paths])
-        totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato']).agg(
+        totales_globales = totales_globales.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato', 'entidad_principal', 'concepto']).agg(
             monto_total_gastado=('monto_total_gastado', 'sum'),
             cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
             monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
@@ -203,8 +208,9 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
         ).reset_index()
         
         totales_globales['monto_promedio'] = totales_globales['monto_promedio_x_count'] / totales_globales['cantidad_funcionarios_unicos']
-        totales_globales.drop(columns=['monto_promedio_x_count'], inplace=True)
-        totales_globales.to_parquet(os.path.join(output_dir, 'totales_historicos.parquet'), index=False)
+        totales_globales['entidad_principal'] = totales_globales['entidad_principal'].astype('category')
+        totales_globales['concepto'] = totales_globales['concepto'].astype('category')
+        totales_globales.to_parquet(os.path.join(output_dir, 'totales_historicos.parquet'), index=False, compression='zstd')
         print("-> Exportado totales_historicos.parquet")
     
     if nomina_paths:

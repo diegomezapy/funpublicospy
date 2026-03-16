@@ -61,6 +61,13 @@ function App() {
   // Filtros Globales
   const [filtroSexo, setFiltroSexo] = useState('Todos');
   const [filtroContrato, setFiltroContrato] = useState('Todos');
+  const [filtroEntidad, setFiltroEntidad] = useState('Todas');
+  const [filtroConcepto, setFiltroConcepto] = useState('Todos');
+
+  // Listas Dinámicas extraídas del Parquet
+  const [entidadesList, setEntidadesList] = useState([]);
+  const [conceptosList, setConceptosList] = useState([]);
+
   // Datos Individuales
   const [personData, setPersonData] = useState([]);
   const [personKpis, setPersonKpis] = useState(null);
@@ -85,10 +92,32 @@ function App() {
         }
 
         setDb(mydb);
+        
+        // Extraer los listados dinámicos de Entidad y Conceptos
+        const c1 = await mydb.connect();
+        const entRes = await c1.query("SELECT DISTINCT entidad_principal FROM 'totales.parquet' WHERE entidad_principal IS NOT NULL ORDER BY entidad_principal");
+        
+        // LIMITAR A LOS 150 CONCEPTOS MÁS IMPORTANTES EN EL PRESUPUESTO NACIONAL P/ EVITAR DOM CRASH
+        const concRes = await c1.query(`
+          SELECT concepto 
+          FROM 'totales.parquet' 
+          WHERE concepto IS NOT NULL AND concepto != 'NO ESPECIFICADO' 
+          GROUP BY concepto 
+          ORDER BY SUM(monto_total_gastado) DESC 
+          LIMIT 120
+        `);
+        await c1.close();
+        
+        const entidades = entRes.toArray().map(r => r.entidad_principal).filter(e => e && e.trim() !== '');
+        const conceptos = concRes.toArray().map(r => r.concepto).filter(c => c && c.trim() !== '');
+        
+        setEntidadesList(entidades);
+        setConceptosList(conceptos);
+
         setReady(true);
         
         // Cargar vista global inicialmente
-        await loadGlobalData(mydb, 'Todos', 'Todos');
+        await loadGlobalData(mydb, 'Todos', 'Todos', 'Todas', 'Todos');
       } catch (err) {
         console.error("Error inicializando db:", err);
         setError("Error cargando la base de datos.");
@@ -99,16 +128,18 @@ function App() {
 
   useEffect(() => {
     if (db && ready) {
-       loadGlobalData(db, filtroSexo, filtroContrato);
+       loadGlobalData(db, filtroSexo, filtroContrato, filtroEntidad, filtroConcepto);
     }
-  }, [filtroSexo, filtroContrato]);
+  }, [filtroSexo, filtroContrato, filtroEntidad, filtroConcepto]);
 
-  const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato) => {
+  const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     const conn = await database.connect();
     try {
       let whereClauses = [];
       if (s !== 'Todos') whereClauses.push(`sexo_canon = '${s}'`);
       if (c !== 'Todos') whereClauses.push(`tipo_contrato = '${c}'`);
+      if (e !== 'Todas') whereClauses.push(`entidad_principal = '${e.replace(/'/g, "''")}'`);
+      if (conc !== 'Todos') whereClauses.push(`concepto = '${conc.replace(/'/g, "''")}'`);
       
       const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
@@ -315,6 +346,27 @@ function App() {
       };
     });
 
+    const dataTotalGasto = uniqueLabels.map(label => {
+      const [anio, mes] = label.split('-');
+      return globalData
+        .filter(d => String(d.anio) === anio && String(d.mes).padStart(2, '0') === mes)
+        .reduce((sum, d) => sum + d.monto_total_gastado, 0);
+    });
+
+    const datasetTotalGasto = {
+      label: 'TOTAL GASTO',
+      data: dataTotalGasto,
+      type: 'line',
+      borderColor: '#0f172a',
+      backgroundColor: '#0f172a',
+      borderWidth: 3,
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      order: -1
+    };
+
     const datasetsPromedio = uniqueGroups.map((grupo, index) => {
       const data = uniqueLabels.map(label => {
         const [anio, mes] = label.split('-');
@@ -339,7 +391,7 @@ function App() {
 
     const dataGasto = {
       labels: uniqueLabels,
-      datasets: datasetsGasto
+      datasets: [...datasetsGasto, datasetTotalGasto]
     };
 
     const dataPromedio = {
@@ -416,24 +468,43 @@ function App() {
            </div>
         </div>
 
-        <div className="filtros-panel" style={{display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '1.5rem', flexWrap: 'wrap'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+        <div className="filtros-panel" style={{display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', maxWidth: '1000px'}}>
+          
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 200px'}}>
+            <label style={{color: '#334155'}}><strong>Entidad Institucional:</strong></label>
+            <select value={filtroEntidad} onChange={(e) => setFiltroEntidad(e.target.value)} style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+              <option value="Todas">Métricas de Todo el País</option>
+              {entidadesList.map((ent, i) => <option key={i} value={ent}>{ent}</option>)}
+            </select>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 200px'}}>
+            <label style={{color: '#334155'}}><strong>Objeto de Gasto:</strong></label>
+            <select value={filtroConcepto} onChange={(e) => setFiltroConcepto(e.target.value)} style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+              <option value="Todos">Absolutamente Todos</option>
+              {conceptosList.map((conc, i) => <option key={i} value={conc}>{conc}</option>)}
+            </select>
+          </div>
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 120px'}}>
             <label style={{color: '#334155'}}><strong>Sexo:</strong></label>
-            <select value={filtroSexo} onChange={(e) => setFiltroSexo(e.target.value)} style={{padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+            <select value={filtroSexo} onChange={(e) => setFiltroSexo(e.target.value)} style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
               <option value="Todos">Todos</option>
               <option value="Hombres">Hombres</option>
               <option value="Mujeres">Mujeres</option>
             </select>
           </div>
-          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+          
+          <div style={{display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1 1 120px'}}>
             <label style={{color: '#334155'}}><strong>Vínculo:</strong></label>
-            <select value={filtroContrato} onChange={(e) => setFiltroContrato(e.target.value)} style={{padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
+            <select value={filtroContrato} onChange={(e) => setFiltroContrato(e.target.value)} style={{width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none'}}>
               <option value="Todos">Todos</option>
               <option value="Permanente">Nombrado / Permanente</option>
               <option value="Contratado">Contratado</option>
               <option value="Otros">Otros</option>
             </select>
           </div>
+
         </div>
         
         <div className="chart-container">
