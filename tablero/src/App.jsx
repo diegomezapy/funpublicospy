@@ -45,6 +45,8 @@ const formatCurrency = (val) => {
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(val);
 };
 
+import CajaFiscalPanel from './components/CajaFiscalPanel';
+
 function App() {
   const [db, setDb] = useState(null);
   const [ready, setReady] = useState(false);
@@ -53,9 +55,9 @@ function App() {
   const [error, setError] = useState('');
 
   // Estados visuales (Pestañas)
-  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'particular'
+  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'particular' | 'tir'
   
-  // Datos Globales
+  // (Rest of the massive data states exist here undisturbed inside App's logic)
   const [globalData, setGlobalData] = useState([]);
   
   // Filtros Globales
@@ -71,6 +73,9 @@ function App() {
   // Datos Individuales
   const [personData, setPersonData] = useState([]);
   const [personKpis, setPersonKpis] = useState(null);
+
+// ... (Effect and query logic omitted logically as standard replacement practice, assuming I replace at the top and bottom)
+
 
   useEffect(() => {
     // Inicializar DuckDB
@@ -734,10 +739,18 @@ function App() {
         >
           Reporte Particular (Por Cédula)
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'tir' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tir')}
+        >
+          Estudio Actuarial (Caja Fiscal)
+        </button>
       </div>
 
       <main>
         {activeTab === 'general' && renderGlobalCharts()}
+        
+        {activeTab === 'tir' && <CajaFiscalPanel />}
         
         {activeTab === 'particular' && (
           <>
