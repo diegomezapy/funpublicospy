@@ -108,36 +108,62 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 unique_entidades = pd.Series(df['descripcionEntidad'].unique())
                 unique_conceptos = pd.Series(df['concepto'].unique())
                 
-                # 2. Limpieza de Caracteres SFP Corruptos sobre los Sets Unicos
-                clean_entidades = unique_entidades.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False)
-                clean_conceptos = unique_conceptos.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False)
+                # 2. Limpieza de Caracteres SFP Corruptos sobre los Sets Unicos (Codificación vieja latin1 corrupta)
+                clean_entidades = unique_entidades.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False).str.replace('┴', 'A', regex=False).str.replace('▄', 'U', regex=False)
+                clean_conceptos = unique_conceptos.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False).str.replace('┴', 'A', regex=False).str.replace('▄', 'U', regex=False)
                 
-                # 3. Limpieza de muletillas, colas de texto y prefijos numéricos ("007-", "MES: 12")
-                clean_entidades = clean_entidades.str.replace(r'^\d+\s*-\s*', '', regex=True)
-                clean_conceptos = clean_conceptos.str.replace(r'\s*-\s*CORRESPONDIENTE AL MES:\s*\d+$', '', regex=True)
+                # 3. Remover tíldes reales de inmediato para no dar la oportunidad a fallas posteriores
+                clean_entidades = clean_entidades.str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8')
+                clean_conceptos = clean_conceptos.str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8')
+
+                # 4. Limpieza Agresiva de muletillas, colas de texto y prefijos numéricos ("016-", "016 - ", "016. MINISTERIO")
+                # Elimina el prefijo institucional (ej: 001- , 016, etc.)
+                clean_entidades = clean_entidades.str.replace(r'^\s*[\d\.\-\,]+(?:[\s\-]+)?', '', regex=True)
                 
-                # 4. Mapeo y Normalización Semántica de Entidades (Agrupar historiales)
+                # Consolidación general de sufijos ministeriales (limpia 'MINISTERIO DE EDUCACION Y CULTURA - ADM CENTRAL')
+                clean_entidades = clean_entidades.str.replace(r'\s*-\s*ADM.*$', '', regex=True)
+                
+                # Conceptos: elimina sufijos de sueldos
+                clean_conceptos = clean_conceptos.str.replace(r'\s*-\s*CORRESPONDIENTE AL MES.*$', '', regex=True)
+                clean_conceptos = clean_conceptos.str.replace(r'\s*MES[\s:]*\d+$', '', regex=True)
+                clean_conceptos = clean_conceptos.str.replace(r'\s*CORRESPONDIENTE AL MES\s*\d*$', '', regex=True)
+                clean_conceptos = clean_conceptos.str.replace(r'\s*\(\d+\)$', '', regex=True) # sufijos como (111)
+                
+                # 5. Mapeo Semántico de Entidades (Agrupar historiales)
                 ent_map = {
-                    r'^MINISTERIO DE EDUCACION Y CULTURA$': 'MINISTERIO DE EDUCACION Y CIENCIAS',
-                    r'^MIN.*SALUD PUBLICA Y BIENESTAR SOCIAL$': 'MINISTERIO DE SALUD PUBLICA Y BIENESTAR SOCIAL',
-                    r'^ADMINISTRACION NACIONAL DE ELECTRICIDAD.*': 'ADMINISTRACION NACIONAL DE ELECTRICIDAD (ANDE)',
+                    r'^MINISTERIO DE EDUCACION Y CUL.*$': 'MINISTERIO DE EDUCACION Y CIENCIAS',
+                    r'^MINISTERIO DE EDUCACION Y CIE.*$': 'MINISTERIO DE EDUCACION Y CIENCIAS',
+                    r'^MIN.*SALUD PUBLICA Y BIE.*$': 'MINISTERIO DE SALUD PUBLICA Y BIENESTAR SOCIAL',
+                    r'^MIN.*SALUD PUBLICA.*$': 'MINISTERIO DE SALUD PUBLICA Y BIENESTAR SOCIAL',
+                    r'^ADMINISTRACION NAC.*ELECTRICIDAD.*': 'ADMINISTRACION NACIONAL DE ELECTRICIDAD (ANDE)',
                     r'^INSTITUTO DE PREVISION SOCIAL.*': 'INSTITUTO DE PREVISION SOCIAL (IPS)',
                     r'^UNIVERSIDAD NACIONAL DE ASUNCION.*': 'UNIVERSIDAD NACIONAL DE ASUNCION (UNA)',
                     r'^MINISTERIO DE AGRICULTURA Y GANADERIA.*': 'MINISTERIO DE AGRICULTURA Y GANADERIA (MAG)'
                 }
                 clean_entidades = clean_entidades.replace(regex=ent_map)
                 
-                # 5. Mapeo Semántico de Conceptos (Unificar Tipos de Salarios)
+                # 6. Mapeo Semántico de Conceptos (Unificar Tipos de Salarios)
                 con_map = {
-                    r'^SUELDO$': 'SUELDOS',
+                    r'^SUELDO.*$': 'SUELDOS',
+                    r'^SALARIO BASICO.*$': 'SUELDOS',
+                    r'^SALARIO PRESUPUESTADO.*$': 'SUELDOS',
+                    r'^SALARIO MENSUAL.*$': 'SUELDOS',
+                    r'^SALARIO$': 'SUELDOS',
+                    r'^JORNALES.*$': 'JORNALES',
                     r'^SUELDO/JORNAL$': 'JORNALES',
-                    r'^SALARIO BASICO\(111\)$': 'SALARIO BASICO',
-                    r'^SUELDO DEVENGADO$': 'SUELDOS',
-                    r'^SUELDO NOMINAL$': 'SUELDOS'
+                    r'^GASTOS DE REPRESENT.*$': 'GASTOS DE REPRESENTACION',
+                    r'^HONORARIOS.*$': 'HONORARIOS PROFESIONALES',
+                    r'^AGUINALDO.*$': 'AGUINALDOS',
+                    r'^ESCALAFON DOCENTE.*$': 'ESCALAFON DOCENTE',
+                    r'^ESCALAFON DEL EDUCADOR.*$': 'ESCALAFON DOCENTE'
                 }
                 clean_conceptos = clean_conceptos.replace(regex=con_map)
                 
-                # 6. Crear diccionarios de Hash Rápido y retroalimentar a los Millones de Filas
+                # Limpiar espacios colindantes de sobra tras el procesado global
+                clean_entidades = clean_entidades.str.strip()
+                clean_conceptos = clean_conceptos.str.strip()
+                
+                # 7. Crear diccionarios de Hash Rápido y retroalimentar a los Millones de Filas
                 mapa_ent = dict(zip(unique_entidades, clean_entidades))
                 mapa_con = dict(zip(unique_conceptos, clean_conceptos))
                 
