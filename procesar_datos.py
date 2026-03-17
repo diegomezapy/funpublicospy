@@ -41,8 +41,8 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
     # Procesar año por año
     for anio, archivos_anio in sorted(archivos_por_anio.items()):
         print(f"\n--- Procesando Año {anio} ({len(archivos_anio)} archivos) ---")
-        totales_anio = pd.DataFrame()
-        nomina_anio = pd.DataFrame()
+        lista_totales_anio = []
+        lista_nomina_anio = []
         
         for i, archivo in enumerate(archivos_anio):
             print(f"  [{i+1}/{len(archivos_anio)}] Leyendo: {os.path.basename(archivo)}")
@@ -104,6 +104,46 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                 df['concepto'] = df['concepto'].fillna('NO ESPECIFICADO').str.strip().str.upper()
                 df['descripcionEntidad'] = df['descripcionEntidad'].fillna('DESCONOCIDA').str.strip().str.upper()
                 
+                # 1. OPTIMIZACIÓN: Trabajar solo con valores únicos para Expresiones Regulares Costosas
+                unique_entidades = pd.Series(df['descripcionEntidad'].unique())
+                unique_conceptos = pd.Series(df['concepto'].unique())
+                
+                # 2. Limpieza de Caracteres SFP Corruptos sobre los Sets Unicos
+                clean_entidades = unique_entidades.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False)
+                clean_conceptos = unique_conceptos.str.replace('Ë', 'O', regex=False).str.replace('┌', 'U', regex=False).str.replace('Ð', 'N', regex=False).str.replace('═', 'I', regex=False)
+                
+                # 3. Limpieza de muletillas, colas de texto y prefijos numéricos ("007-", "MES: 12")
+                clean_entidades = clean_entidades.str.replace(r'^\d+\s*-\s*', '', regex=True)
+                clean_conceptos = clean_conceptos.str.replace(r'\s*-\s*CORRESPONDIENTE AL MES:\s*\d+$', '', regex=True)
+                
+                # 4. Mapeo y Normalización Semántica de Entidades (Agrupar historiales)
+                ent_map = {
+                    r'^MINISTERIO DE EDUCACION Y CULTURA$': 'MINISTERIO DE EDUCACION Y CIENCIAS',
+                    r'^MIN.*SALUD PUBLICA Y BIENESTAR SOCIAL$': 'MINISTERIO DE SALUD PUBLICA Y BIENESTAR SOCIAL',
+                    r'^ADMINISTRACION NACIONAL DE ELECTRICIDAD.*': 'ADMINISTRACION NACIONAL DE ELECTRICIDAD (ANDE)',
+                    r'^INSTITUTO DE PREVISION SOCIAL.*': 'INSTITUTO DE PREVISION SOCIAL (IPS)',
+                    r'^UNIVERSIDAD NACIONAL DE ASUNCION.*': 'UNIVERSIDAD NACIONAL DE ASUNCION (UNA)',
+                    r'^MINISTERIO DE AGRICULTURA Y GANADERIA.*': 'MINISTERIO DE AGRICULTURA Y GANADERIA (MAG)'
+                }
+                clean_entidades = clean_entidades.replace(regex=ent_map)
+                
+                # 5. Mapeo Semántico de Conceptos (Unificar Tipos de Salarios)
+                con_map = {
+                    r'^SUELDO$': 'SUELDOS',
+                    r'^SUELDO/JORNAL$': 'JORNALES',
+                    r'^SALARIO BASICO\(111\)$': 'SALARIO BASICO',
+                    r'^SUELDO DEVENGADO$': 'SUELDOS',
+                    r'^SUELDO NOMINAL$': 'SUELDOS'
+                }
+                clean_conceptos = clean_conceptos.replace(regex=con_map)
+                
+                # 6. Crear diccionarios de Hash Rápido y retroalimentar a los Millones de Filas
+                mapa_ent = dict(zip(unique_entidades, clean_entidades))
+                mapa_con = dict(zip(unique_conceptos, clean_conceptos))
+                
+                df['descripcionEntidad'] = df['descripcionEntidad'].map(mapa_ent)
+                df['concepto'] = df['concepto'].map(mapa_con)
+                
                 def p10(x): return x.quantile(0.10)
                 def p50(x): return x.median()
                 def p90(x): return x.quantile(0.90)
@@ -142,34 +182,18 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
                     contratados=('is_contratado', 'sum')
                 ).reset_index()
                 
-                totales_anio = pd.concat([totales_anio, loc_totales])
-                totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato', 'entidad_principal', 'concepto']).agg(
-                    monto_total_gastado=('monto_total_gastado', 'sum'),
-                    cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
-                    monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
-                    salario_mediana=('salario_mediana', 'mean'), 
-                    salario_p10=('salario_p10', 'mean'),
-                    salario_p90=('salario_p90', 'mean'),
-                    hombres=('hombres', 'sum'),
-                    mujeres=('mujeres', 'sum'),
-                    permanentes=('permanentes', 'sum'),
-                    contratados=('contratados', 'sum')
-                ).reset_index()
+                lista_totales_anio.append(loc_totales)
                 
                 loc_nomina = df.groupby(['anio', 'mes', 'codigoPersona', 'descripcionEntidad']).agg(
                     monto_total_mes=('montoDevengado', 'sum')
                 ).reset_index()
                 loc_nomina.rename(columns={'descripcionEntidad': 'entidad_principal'}, inplace=True)
                 
-                nomina_anio = pd.concat([nomina_anio, loc_nomina])
-                nomina_anio = nomina_anio.groupby(['anio', 'mes', 'codigoPersona', 'entidad_principal']).agg(
-                    monto_total_mes=('monto_total_mes', 'sum')
-                ).reset_index()
+                lista_nomina_anio.append(loc_nomina)
                 
-                del df
-                del loc_totales
-                del loc_nomina
-                del agrup_persona
+                del df, agrup_persona, loc_totales, loc_nomina
+                import gc
+                gc.collect()
                 
             except Exception as e:
                 print(f"  [ERROR] en archivo {archivo}: {e}")
@@ -178,13 +202,35 @@ def procesar_nominas(input_dir='D:/GitHub/funpublicospy', output_dir='D:/GitHub/
         f_totales = os.path.join(temp_dir, f"totales_{anio}.parquet")
         f_nomina = os.path.join(temp_dir, f"nomina_{anio}.parquet")
         
-        if not totales_anio.empty:
+        if lista_totales_anio:
+            totales_anio = pd.concat(lista_totales_anio)
+            totales_anio = totales_anio.groupby(['anio', 'mes', 'gran_grupo', 'sexo_canon', 'tipo_contrato', 'entidad_principal', 'concepto']).agg(
+                monto_total_gastado=('monto_total_gastado', 'sum'),
+                cantidad_funcionarios_unicos=('cantidad_funcionarios_unicos', 'sum'),
+                monto_promedio_x_count=('monto_promedio_x_count', 'sum'),
+                salario_mediana=('salario_mediana', 'mean'), 
+                salario_p10=('salario_p10', 'mean'),
+                salario_p90=('salario_p90', 'mean'),
+                hombres=('hombres', 'sum'),
+                mujeres=('mujeres', 'sum'),
+                permanentes=('permanentes', 'sum'),
+                contratados=('contratados', 'sum')
+            ).reset_index()
             totales_anio.to_parquet(f_totales, index=False)
-        if not nomina_anio.empty:
-            nomina_anio.to_parquet(f_nomina, index=False)
+            del totales_anio
             
-        del totales_anio
-        del nomina_anio
+        if lista_nomina_anio:
+            nomina_anio = pd.concat(lista_nomina_anio)
+            nomina_anio = nomina_anio.groupby(['anio', 'mes', 'codigoPersona', 'entidad_principal']).agg(
+                monto_total_mes=('monto_total_mes', 'sum')
+            ).reset_index()
+            nomina_anio.to_parquet(f_nomina, index=False)
+            del nomina_anio
+            
+        del lista_totales_anio
+        del lista_nomina_anio
+        import gc
+        gc.collect()
         print(f"  -> Año {anio} guardado en cache.")
 
     # Fase 2: Consolidar todos los años
