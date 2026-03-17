@@ -141,6 +141,9 @@ function App() {
       if (e !== 'Todas') whereClauses.push(`entidad_principal = '${e.replace(/'/g, "''")}'`);
       if (conc !== 'Todos') whereClauses.push(`concepto = '${conc.replace(/'/g, "''")}'`);
       
+      // Filtro rígido para ocultar el año en curso (2026) que entra incompleto
+      whereClauses.push(`anio <= 2025`);
+      
       const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
       // Leer el parquet hiper ligero agrupado globalmente
@@ -268,12 +271,14 @@ function App() {
       x: { 
         grid: { display: false }, 
         ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b' },
-        border: { display: false }
+        border: { display: false },
+        title: { display: true, text: 'Año y Mes', font: { family: 'Inter', size: 13, weight: 'bold' } }
       },
       y: { 
         border: { display: false, dash: [4, 4] }, 
         grid: { color: 'rgba(226, 232, 240, 0.6)', drawTicks: false }, 
-        ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b', padding: 10 } 
+        ticks: { font: { family: 'Inter', size: 12 }, color: '#64748b', padding: 10 },
+        title: { display: true, text: 'Monto (Guaraníes) / Cuantía', font: { family: 'Inter', size: 13, weight: 'bold' } }
       }
     },
     elements: {
@@ -450,8 +455,8 @@ function App() {
     return (
       <>
         <div className="kpi-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))'}}>
-           <div className="kpi-card">
-              <span className="kpi-title">Funcionarios Último Mes</span>
+           <div className="kpi-card" title="Incluye pluriempleo y cobro de múltiples conceptos simultáneos por una misma persona.">
+              <span className="kpi-title">Vínculos Salariales Emitidos</span>
               <span className="kpi-value">{new Intl.NumberFormat('es-PY').format(totalFunc)}</span>
            </div>
            <div className="kpi-card">
@@ -515,13 +520,18 @@ function App() {
 
         <div className="chart-container">
           <h3 className="chart-title">Evolución Gasto Público Salarial Total (Apilado)</h3>
+          <p style={{textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginTop: '-10px', marginBottom: '15px'}}>Representa el dinero absoluto transferido por el estado a los estamentos seleccionados.</p>
           <Bar data={dataGasto} options={{
              ...commonChartOptions,
              scales: {
                x: { ...commonChartOptions.scales.x, stacked: true },
-               y: { ...commonChartOptions.scales.y, stacked: true }
+               y: { ...commonChartOptions.scales.y, stacked: true, title: { display: true, text: 'Gasto Absoluto (Paraguay)', font: { family: 'Inter', size: 13, weight: 'bold' } } }
              }
           }} />
+        </div>
+        
+        <div style={{backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7', padding: '15px', color: '#0369a1', margin: '20px auto', borderRadius: '4px', maxWidth: '1000px', fontSize: '0.9rem'}}>
+           <strong>Nota Metodológica sobre la Cantidad de Personas:</strong> El motor de cruce analítico expone el volumen de "Vínculos de Pago" en lugar de "Cédulas Únicas" estáticas. Debido al pluriempleo salarial (un maestro cobrando en dos instituciones) y la multiplicidad de Conceptos (Sueldo + Bonificaciones cruzadas), la sumatoria arroja un número superior (Ej. 800.000+) en contraste a la base fisiológica de ~300.000 funcionarios reales nominales. Úsense estos gráficos demográficos como representación del impacto contractual.
         </div>
         
         <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
@@ -531,8 +541,8 @@ function App() {
                ...commonChartOptions,
                indexAxis: 'y', // Hacerlo horizontal para que se lean bien los grupos
                scales: {
-                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' } },
-                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false } }
+                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' }, title: { display: true, text: 'Cantidad de Vínculos/Pagos', font: { family: 'Inter', size: 13, weight: 'bold' } } },
+                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false }, title: { display: true, text: 'Sector Laboral', font: { family: 'Inter', size: 13, weight: 'bold' } } }
                }
             }} />
           </div>
@@ -542,8 +552,8 @@ function App() {
                ...commonChartOptions,
                indexAxis: 'y',
                scales: {
-                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' } },
-                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false } }
+                 x: { ...commonChartOptions.scales.x, stacked: true, grid: { color: 'rgba(226, 232, 240, 0.6)' }, title: { display: true, text: 'Cantidad de Vínculos/Pagos', font: { family: 'Inter', size: 13, weight: 'bold' } } },
+                 y: { ...commonChartOptions.scales.y, stacked: true, grid: { display: false }, title: { display: true, text: 'Sector Laboral', font: { family: 'Inter', size: 13, weight: 'bold' } } }
                }
             }} />
           </div>
@@ -558,7 +568,7 @@ function App() {
               <thead>
                 <tr>
                   <th>Grupo/Sector Laboral</th>
-                  <th style={{textAlign: 'right'}}>N° Funcionarios</th>
+                  <th style={{textAlign: 'right'}} title="Número acumulado de salarios pagados.">N° Vínculos Cobrados</th>
                   <th style={{textAlign: 'right'}}>Mediana Salarial (G)</th>
                   <th style={{textAlign: 'right'}}>Techo Salarial P90 (G)</th>
                   <th style={{textAlign: 'right'}}>Gasto Total (M)</th>
@@ -658,7 +668,7 @@ function App() {
         
         <div className="chart-container">
           <h3 className="chart-title">Evolución de Ingresos Cédula {cedulaInput}</h3>
-          <Line data={dataSueldo} options={{...commonChartOptions, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
+          <Line data={dataSueldo} options={{...commonChartOptions, scales: { x: { title: { display: true, text: 'Año y Mes' } }, y: { title: { display: true, text: 'Monto Salarial Percibido (G)' } } }, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
         </div>
         
         <div className="data-table-container">
