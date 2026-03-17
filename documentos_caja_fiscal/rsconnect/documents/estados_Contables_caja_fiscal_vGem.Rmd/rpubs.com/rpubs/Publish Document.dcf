@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/1392484/6f195c3a09c74766854c834a1c18bc5f
+bundleId: https://api.rpubs.com/api/v1/document/1392484/6f195c3a09c74766854c834a1c18bc5f
+url: http://rpubs.com/diegomeza/1392484
+version: 1
