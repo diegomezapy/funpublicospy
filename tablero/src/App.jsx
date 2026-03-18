@@ -73,6 +73,11 @@ function App() {
   // Datos Individuales
   const [personData, setPersonData] = useState([]);
   const [personKpis, setPersonKpis] = useState(null);
+  
+  // Estados Proyección Actuarial Individual
+  const [personEdad, setPersonEdad] = useState(45);
+  const [personSexo, setPersonSexo] = useState('Hombre');
+  const [personActuarial, setPersonActuarial] = useState(null);
 
 // ... (Effect and query logic omitted logically as standard replacement practice, assuming I replace at the top and bottom)
 
@@ -136,6 +141,111 @@ function App() {
        loadGlobalData(db, filtroSexo, filtroContrato, filtroEntidad, filtroConcepto);
     }
   }, [filtroSexo, filtroContrato, filtroEntidad, filtroConcepto]);
+
+  useEffect(() => {
+    if (personData.length === 0) {
+      setPersonActuarial(null);
+      return;
+    }
+    
+    // Calcular Proyeccion Actuarial
+    const crecNominal = 0.06; // 6%
+    const tasaDescuento = 0.06;
+    const inflacion = 0.04;
+    
+    // Agrupar historicals por año para simplificar la capitalizacion
+    let histPorAnio = {};
+    personData.forEach(d => {
+       if(!histPorAnio[d.anio]) histPorAnio[d.anio] = 0;
+       histPorAnio[d.anio] += d.monto_total_mes;
+    });
+    
+    const añosReales = Object.keys(histPorAnio).map(Number).sort();
+    const primerAnio = añosReales[0];
+    const ultimoAnio = añosReales[añosReales.length - 1];
+    
+    const edadAlUltimoAnio = personEdad;
+    const anioNacimiento = ultimoAnio - edadAlUltimoAnio;
+    
+    const edadRetiroTarget = 65;
+    const anioRetiro = anioNacimiento + edadRetiroTarget;
+    
+    let vpaAportes = 0;
+    
+    let edadesProyeccion = [];
+    let ingresosActivoProj = [];
+    let ingresosPasivoProj = [];
+    
+    // Sueldo Anual Promedio (Ultimos 5 años reales)
+    const ultimos5 = añosReales.slice(-5);
+    const sumaUltimos5 = ultimos5.reduce((sum, a) => sum + histPorAnio[a], 0);
+    const sueldoAnualPromedio = sumaUltimos5 / ultimos5.length;
+    let baseJubilatoriaAnual = sueldoAnualPromedio; 
+
+    // 1. Fase Histórica (Pasado Conocido)
+    for(let a = primerAnio; a <= ultimoAnio; a++) {
+       const cobradoEseAnio = histPorAnio[a] || 0;
+       const aporte = cobradoEseAnio * 0.16;
+       
+       // Capitalizar al año de retiro
+       vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - a);
+       
+       edadesProyeccion.push(a);
+       ingresosActivoProj.push(cobradoEseAnio);
+       ingresosPasivoProj.push(null);
+    }
+    
+    // 2. Fase Proyectada Activa (hasta R)
+    let anioSiguiente = ultimoAnio + 1;
+    let ultimoSueldoAnual = histPorAnio[ultimoAnio] || sueldoAnualPromedio;
+    
+    while(anioSiguiente <= anioRetiro) {
+       if(anioSiguiente < anioRetiro) {
+           ultimoSueldoAnual = ultimoSueldoAnual * (1 + crecNominal);
+           const aporte = ultimoSueldoAnual * 0.16;
+           vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - anioSiguiente);
+       }
+       baseJubilatoriaAnual = ultimoSueldoAnual; 
+       
+       edadesProyeccion.push(anioSiguiente);
+       ingresosActivoProj.push(ultimoSueldoAnual);
+       ingresosPasivoProj.push(null);
+       anioSiguiente++;
+    }
+    
+    // 3. Fase Proyectada Pasiva (Jubilación hasta Esperanza de Vida)
+    const esperanzaV = personSexo === 'Mujer' ? 18 : 15;
+    const anioMuerte = anioRetiro + esperanzaV;
+    let vpaBeneficios = 0;
+    
+    let beneficioCurrent = baseJubilatoriaAnual;
+    for(let a = anioRetiro + 1; a <= anioMuerte; a++) {
+       beneficioCurrent = beneficioCurrent * (1 + inflacion);
+       
+       // Descontar al año de retiro (en t=0, que es anioRetiro)
+       vpaBeneficios += beneficioCurrent / Math.pow((1 + tasaDescuento), a - anioRetiro);
+       
+       edadesProyeccion.push(a);
+       ingresosActivoProj.push(null);
+       ingresosPasivoProj.push(beneficioCurrent);
+    }
+    
+    // Empalme visual
+    const idxRetiro = edadesProyeccion.indexOf(anioRetiro);
+    if(idxRetiro >= 0) {
+      ingresosPasivoProj[idxRetiro] = beneficioCurrent / (1+inflacion);
+    }
+
+    setPersonActuarial({
+       anioRetiro,
+       vpaAportes,
+       vpaBeneficios,
+       labels: edadesProyeccion.map(String),
+       ingresosActivos: ingresosActivoProj,
+       ingresosPasivos: ingresosPasivoProj
+    });
+
+  }, [personData, personEdad, personSexo]);
 
   const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     const conn = await database.connect();
@@ -727,7 +837,112 @@ function App() {
           </div>
         </div>
 
-        <div style={{textAlign: 'center', marginBottom: '2rem'}}>
+        {/* Panel Actuarial Dinámico Integrado */}
+        <div style={{marginTop: '30px', backgroundColor: '#f8fafc', padding: '25px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}>
+          <h3 style={{marginTop: 0, color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px'}}>Estudio Actuarial Personalizado</h3>
+          <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '20px'}}>Complete sus datos biológicos para que el algoritmo determine su fecha de jubilación proyectada y compare el valor presente de los impuestos que el Estado ahorró desde que empezó a trabajar vs el valor de los beneficios que le tendrá que pagar hasta su fallecimiento.</p>
+          
+          <div style={{display: 'flex', gap: '20px', marginBottom: '25px', flexWrap: 'wrap'}}>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>¿Qué edad tiene hoy?</label>
+              <input type="number" value={personEdad} onChange={e => setPersonEdad(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Sexo Biológico (Fórmula Mortalidad)</label>
+              <select value={personSexo} onChange={e => setPersonSexo(e.target.value)} style={{padding: '8px', width: '250px'}}>
+                <option value="Hombre">Hombre (Menor sobrevida)</option>
+                <option value="Mujer">Mujer (Mayor sobrevida)</option>
+              </select>
+            </div>
+          </div>
+          
+          {personActuarial && (
+             <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
+                <div style={{flex: '1 1 300px'}}>
+                  <h4 style={{margin: '0 0 15px 0', color: '#475569'}}>Resultados Financieros (Valor Presente)</h4>
+                  <ul style={{listStyle: 'none', padding: 0, margin: 0, fontSize: '0.95rem'}}>
+                    <li style={{marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0'}}>
+                      <strong>Año Clave de Jubilación Estimada:</strong> <br/>
+                      <span style={{color: '#3b82f6', fontWeight: 'bold', fontSize: '1.2rem'}}>{personActuarial.anioRetiro}</span>
+                    </li>
+                    <li style={{marginBottom: '10px'}}>
+                      <span style={{color: '#64748b'}}>Valor de Aportes Pagados Exigidos al Funcionario:</span> <br/>
+                      <strong>{formatCurrency(personActuarial.vpaAportes)}</strong>
+                    </li>
+                    <li style={{marginBottom: '10px'}}>
+                      <span style={{color: '#64748b'}}>Valor de Beneficios Pagados por el Estado:</span> <br/>
+                      <strong>{formatCurrency(personActuarial.vpaBeneficios)}</strong>
+                    </li>
+                    <li style={{marginTop: '20px', padding: '15px', backgroundColor: (personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#f0fdf4' : '#fef2f2', border: '1px solid ' + ((personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#bbf7d0' : '#fecaca'), borderRadius: '6px'}}>
+                       <strong style={{color: '#334155'}}>Balance (Déficit / Superávit para el País):</strong> <br/>
+                       <span style={{fontSize: '1.4rem', color: (personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#15803d' : '#b91c1c', fontWeight: 'bold'}}>
+                         {formatCurrency(personActuarial.vpaAportes - personActuarial.vpaBeneficios)}
+                       </span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <div style={{flex: '1 1 500px', minHeight: '350px'}}>
+                  <h4 style={{margin: '0 0 10px 0', color: '#475569', textAlign: 'center'}}>Evolución Vitalícia (Pasado vs Futuro)</h4>
+                  <div style={{position: 'relative', height: '320px'}}>
+                    <Line data={{
+                      labels: personActuarial.labels,
+                      datasets: [
+                        {
+                          label: 'Ingresos Históricos + Proyectados (Activo)',
+                          data: personActuarial.ingresosActivos,
+                          borderColor: '#3b82f6',
+                          backgroundColor: '#3b82f6',
+                          tension: 0.2,
+                          borderWidth: 2,
+                          pointRadius: 1,
+                          spanGaps: true
+                        },
+                        {
+                          label: 'Pensión Probable (Jubilado)',
+                          data: personActuarial.ingresosPasivos,
+                          borderColor: '#10b981',
+                          backgroundColor: '#10b981',
+                          tension: 0.2,
+                          borderWidth: 3,
+                          borderDash: [5, 5],
+                          pointRadius: 1,
+                          spanGaps: true
+                        }
+                      ]
+                    }} options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        tooltip: {
+                          callbacks: {
+                            label: function(context) {
+                              return context.dataset.label + ': ' + formatCurrency(context.raw);
+                            }
+                          }
+                        }
+                      },
+                      scales: {
+                        x: {
+                          title: { display: true, text: 'Edad / Año', font: {weight: 'bold'} }
+                        },
+                        y: {
+                          title: { display: true, text: 'Monto Anualizado (PYG)', font: {weight: 'bold'} },
+                          ticks: {
+                            callback: function(value) {
+                              return new Intl.NumberFormat('es-PY', { notation: "compact", compactDisplay: "short" }).format(value);
+                            }
+                          }
+                        }
+                      }
+                    }} />
+                  </div>
+                </div>
+             </div>
+          )}
+        </div>
+
+        <div style={{textAlign: 'center', marginBottom: '2rem', marginTop: '2rem'}}>
            <button className="btn-secondary" onClick={clearSearch}>Limpiar Búsqueda</button>
         </div>
       </>
