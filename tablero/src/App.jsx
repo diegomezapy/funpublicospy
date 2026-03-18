@@ -316,7 +316,7 @@ function App() {
       const query = `
         SELECT anio, mes, entidad_principal, monto_total_mes 
         FROM read_parquet('nomina_*.parquet') 
-        WHERE cedula = '${cedulaInput}'
+        WHERE cedula = '${cedulaInput}' AND anio <= 2025
         ORDER BY anio, mes
       `;
       const result = await conn.query(query);
