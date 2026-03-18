@@ -167,6 +167,12 @@ function App() {
     const añosReales = Object.keys(histPorAnio).map(Number).sort();
     const primerAnio = añosReales[0];
     const ultimoAnio = añosReales[añosReales.length - 1];
+
+    // Corregir caída visual/actuarial si el último año reportado está incompleto
+    const mesesUltimoAnio = personData.filter(d => d.anio === ultimoAnio).length;
+    if (mesesUltimoAnio > 0 && mesesUltimoAnio < 12) {
+       histPorAnio[ultimoAnio] = (histPorAnio[ultimoAnio] / mesesUltimoAnio) * 13;
+    }
     
     const edadAlUltimoAnio = personEdad;
     const anioNacimiento = ultimoAnio - edadAlUltimoAnio;
@@ -200,9 +206,11 @@ function App() {
     }
     
     // 2. Fase Proyectada Activa (hasta R)
-    // Usamos el último mes conocido anualizado para evitar baches si el año en curso está incompleto.
-    const ultimoMesSueldo = personData[personData.length - 1].monto_total_mes;
-    const sueldoAnualAnualizado = ultimoMesSueldo * 13; // Asume 12 salarios + Aguinaldo.
+    // Proyección lógica requerida: basada en los últimos 6 meses de históricos salariales reales.
+    const ultimos6MesesData = personData.slice(-6);
+    const sumaUltimos6 = ultimos6MesesData.reduce((sum, d) => sum + d.monto_total_mes, 0);
+    const promedioMensualUltimos6 = sumaUltimos6 / ultimos6MesesData.length;
+    const sueldoAnualAnualizado = promedioMensualUltimos6 * 13; // Base anual estable sin sesgos
     
     let anioSiguiente = ultimoAnio + 1;
     let ultimoSueldoAnual = sueldoAnualAnualizado;
