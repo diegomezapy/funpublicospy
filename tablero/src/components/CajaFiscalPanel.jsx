@@ -278,6 +278,21 @@ const CajaFiscalPanel = () => {
                 <option value={0.6}>60% (Capitalización priv.)</option>
               </select>
             </div>
+            
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Salario Inicial (PYG)</label>
+              <input type="number" step="100000" value={salarioBase} onChange={e => setSalarioBase(Number(e.target.value))} style={{padding: '8px'}} />
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Crecimiento Real Economía</label>
+              <input type="number" step="0.01" value={crecimientoReal} onChange={e => setCrecimientoReal(Number(e.target.value))} style={{padding: '8px'}} />
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Inflación Anual Esperada</label>
+              <input type="number" step="0.01" value={inflacion} onChange={e => setInflacion(Number(e.target.value))} style={{padding: '8px'}} />
+            </div>
           </div>
           
           <button onClick={handleCalcularTIR} style={{marginTop: '20px', width: '100%', padding: '12px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>

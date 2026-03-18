@@ -77,6 +77,9 @@ function App() {
   // Estados Proyección Actuarial Individual
   const [personEdad, setPersonEdad] = useState(45);
   const [personSexo, setPersonSexo] = useState('Hombre');
+  const [personCrecimiento, setPersonCrecimiento] = useState(0.02);
+  const [personInflacion, setPersonInflacion] = useState(0.04);
+  const [personTasaSustitucion, setPersonTasaSustitucion] = useState(1.0);
   const [personActuarial, setPersonActuarial] = useState(null);
 
 // ... (Effect and query logic omitted logically as standard replacement practice, assuming I replace at the top and bottom)
@@ -149,9 +152,10 @@ function App() {
     }
     
     // Calcular Proyeccion Actuarial
-    const crecNominal = 0.06; // 6%
-    const tasaDescuento = 0.06;
-    const inflacion = 0.04;
+    const crecNominal = parseFloat(personCrecimiento) + parseFloat(personInflacion);
+    const tasaDescuento = crecNominal;
+    const inflacion = parseFloat(personInflacion);
+    const tasaSustitucion = parseFloat(personTasaSustitucion);
     
     // Agrupar historicals por año para simplificar la capitalizacion
     let histPorAnio = {};
@@ -196,8 +200,12 @@ function App() {
     }
     
     // 2. Fase Proyectada Activa (hasta R)
+    // Usamos el último mes conocido anualizado para evitar baches si el año en curso está incompleto.
+    const ultimoMesSueldo = personData[personData.length - 1].monto_total_mes;
+    const sueldoAnualAnualizado = ultimoMesSueldo * 13; // Asume 12 salarios + Aguinaldo.
+    
     let anioSiguiente = ultimoAnio + 1;
-    let ultimoSueldoAnual = histPorAnio[ultimoAnio] || sueldoAnualPromedio;
+    let ultimoSueldoAnual = sueldoAnualAnualizado;
     
     while(anioSiguiente <= anioRetiro) {
        if(anioSiguiente < anioRetiro) {
@@ -218,7 +226,7 @@ function App() {
     const anioMuerte = anioRetiro + esperanzaV;
     let vpaBeneficios = 0;
     
-    let beneficioCurrent = baseJubilatoriaAnual;
+    let beneficioCurrent = baseJubilatoriaAnual * tasaSustitucion;
     for(let a = anioRetiro + 1; a <= anioMuerte; a++) {
        beneficioCurrent = beneficioCurrent * (1 + inflacion);
        
@@ -245,7 +253,7 @@ function App() {
        ingresosPasivos: ingresosPasivoProj
     });
 
-  }, [personData, personEdad, personSexo]);
+  }, [personData, personEdad, personSexo, personCrecimiento, personInflacion, personTasaSustitucion]);
 
   const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     const conn = await database.connect();
@@ -849,10 +857,26 @@ function App() {
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Sexo Biológico (Fórmula Mortalidad)</label>
-              <select value={personSexo} onChange={e => setPersonSexo(e.target.value)} style={{padding: '8px', width: '250px'}}>
+              <select value={personSexo} onChange={e => setPersonSexo(e.target.value)} style={{padding: '8px', width: '180px'}}>
                 <option value="Hombre">Hombre (Menor sobrevida)</option>
                 <option value="Mujer">Mujer (Mayor sobrevida)</option>
               </select>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Tasa de Sustitución Prometida</label>
+              <select value={personTasaSustitucion} onChange={e => setPersonTasaSustitucion(Number(e.target.value))} style={{padding: '8px', width: '180px'}}>
+                <option value={1.0}>100% (Administrativos)</option>
+                <option value={0.93}>93% (Docentes)</option>
+                <option value={0.6}>60% (Capitalización priv.)</option>
+              </select>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>% Crecimiento Real PBI</label>
+              <input type="number" step="0.01" value={personCrecimiento} onChange={e => setPersonCrecimiento(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>% Inflación Anual</label>
+              <input type="number" step="0.01" value={personInflacion} onChange={e => setPersonInflacion(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
             </div>
           </div>
           
