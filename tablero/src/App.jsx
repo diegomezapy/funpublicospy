@@ -205,23 +205,45 @@ function App() {
        ingresosPasivoProj.push(null);
     }
     
-    // 2. Fase Proyectada Activa (hasta R)
-    // Proyección lógica requerida: basada en los últimos 6 meses de históricos salariales reales.
-    const ultimos6MesesData = personData.slice(-6);
-    const sumaUltimos6 = ultimos6MesesData.reduce((sum, d) => sum + d.monto_total_mes, 0);
-    const promedioMensualUltimos6 = sumaUltimos6 / ultimos6MesesData.length;
-    const sueldoAnualAnualizado = promedioMensualUltimos6 * 13; // Base anual estable sin sesgos
+    // Modelo de Serie de Tiempo (Regresión Lineal Simple) sobre el historial real
+    const nSeries = añosReales.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
     
+    añosReales.forEach(a => {
+       const x = a - primerAnio; // Normalizar X
+       const y = histPorAnio[a];
+       sumX += x;
+       sumY += y;
+       sumXY += (x * y);
+       sumX2 += (x * x);
+    });
+    
+    let slope = 0;
+    let intercept = histPorAnio[ultimoAnio] || 0;
+    if (nSeries > 1) {
+       slope = (nSeries * sumXY - sumX * sumY) / (nSeries * sumX2 - sumX * sumX);
+       intercept = (sumY - slope * sumX) / nSeries;
+    }
+    // Si la regresión es negativa, asumimos estabilidad (0)
+    if (slope < 0) slope = 0;
+
     let anioSiguiente = ultimoAnio + 1;
-    let ultimoSueldoAnual = sueldoAnualAnualizado;
+    let ultimoSueldoAnual = histPorAnio[ultimoAnio];
     
     while(anioSiguiente <= anioRetiro) {
        if(anioSiguiente < anioRetiro) {
-           ultimoSueldoAnual = ultimoSueldoAnual * (1 + crecNominal);
+           // Proyección por Serie de Tiempo
+           let x_futuro = anioSiguiente - primerAnio;
+           let forecastLineal = slope * x_futuro + intercept;
+           
+           // Aseguramos que mínimo empate con la inflación para no perder poder adquisitivo base
+           let minimoInflacionario = ultimoSueldoAnual * (1 + inflacion);
+           ultimoSueldoAnual = Math.max(forecastLineal, minimoInflacionario);
+           
            const aporte = ultimoSueldoAnual * 0.16;
            vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - anioSiguiente);
        }
-       baseJubilatoriaAnual = ultimoSueldoAnual; 
+       baseJubilatoriaAnual = ultimoSueldoAnual;
        
        edadesProyeccion.push(anioSiguiente);
        ingresosActivoProj.push(ultimoSueldoAnual);
@@ -234,7 +256,9 @@ function App() {
     const anioMuerte = anioRetiro + esperanzaV;
     let vpaBeneficios = 0;
     
-    let beneficioCurrent = baseJubilatoriaAnual * tasaSustitucion;
+    const primerBeneficioVitalicio = baseJubilatoriaAnual * tasaSustitucion;
+    let beneficioCurrent = primerBeneficioVitalicio;
+    
     for(let a = anioRetiro + 1; a <= anioMuerte; a++) {
        beneficioCurrent = beneficioCurrent * (1 + inflacion);
        
@@ -246,10 +270,10 @@ function App() {
        ingresosPasivoProj.push(beneficioCurrent);
     }
     
-    // Empalme visual
+    // Empalme visual (El bug del "disparo" se daba porque beneficioCurrent crecía en el loop)
     const idxRetiro = edadesProyeccion.indexOf(anioRetiro);
     if(idxRetiro >= 0) {
-      ingresosPasivoProj[idxRetiro] = beneficioCurrent / (1+inflacion);
+      ingresosPasivoProj[idxRetiro] = primerBeneficioVitalicio;
     }
 
     setPersonActuarial({
