@@ -213,7 +213,7 @@ function App() {
        vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - a);
        
        edadesProyeccion.push(a);
-       ingresosActivoProj.push(cobradoEseAnio);
+       ingresosActivoProj.push(cobradoEseAnio / 13);
        ingresosPasivoProj.push(null);
     }
     
@@ -259,7 +259,7 @@ function App() {
        baseJubilatoriaAnual = ultimoSueldoAnual;
        
        edadesProyeccion.push(anioSiguiente);
-       ingresosActivoProj.push(ultimoSueldoAnual);
+       ingresosActivoProj.push(ultimoSueldoAnual / 13);
        ingresosPasivoProj.push(null);
        anioSiguiente++;
     }
@@ -280,13 +280,13 @@ function App() {
        
        edadesProyeccion.push(a);
        ingresosActivoProj.push(null);
-       ingresosPasivoProj.push(beneficioCurrent);
+       ingresosPasivoProj.push(beneficioCurrent / 13);
     }
     
     // Empalme visual (El bug del "disparo" se daba porque beneficioCurrent crecía en el loop)
     const idxRetiro = edadesProyeccion.indexOf(anioRetiro);
     if(idxRetiro >= 0) {
-      ingresosPasivoProj[idxRetiro] = primerBeneficioVitalicio;
+      ingresosPasivoProj[idxRetiro] = primerBeneficioVitalicio / 13;
     }
 
     setPersonActuarial({
@@ -863,7 +863,7 @@ function App() {
         
         <div className="chart-container">
           <h3 className="chart-title">Evolución de Ingresos Cédula {cedulaInput}</h3>
-          <Line data={dataSueldo} options={{...commonChartOptions, scales: { x: { title: { display: true, text: 'Año y Mes' } }, y: { title: { display: true, text: 'Monto Salarial Percibido (G)' } } }, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
+          <Line data={dataSueldo} options={{...commonChartOptions, scales: { x: { title: { display: true, text: 'Año y Mes' } }, y: { title: { display: true, text: 'Monto Mensualizado (PYG)' } } }, elements: { ...commonChartOptions.elements, line: { tension: 0.2 } }}} />
         </div>
         
         <div className="data-table-container">
@@ -955,7 +955,7 @@ function App() {
                     </p>
                     <p style={{margin: 0, fontSize: '0.9rem', lineHeight: '1.5', color: '#334155'}}>
                       Al jubilarte en {personActuarial.anioRetiro}, se te promete pagar el <strong>{(personActuarial.tasaSustitucion * 100).toFixed(0)}%</strong> de tu salario activo. 
-                      Esto significa que tu primer sueldo como jubilado sería aproximadamente de <strong>{formatCurrency(personActuarial.primerBeneficioVitalicio)} mensuales</strong> (a valores reales futuros considerando tu progresión salarial regular y la inflación).
+                      Esto significa que tu primer sueldo como jubilado sería aproximadamente de <strong>{formatCurrency(personActuarial.primerBeneficioVitalicio / 13)} mensuales</strong> (a valores reales futuros considerando tu progresión salarial regular y la inflación).
                     </p>
                   </div>
 
