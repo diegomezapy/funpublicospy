@@ -75,7 +75,8 @@ function App() {
   const [personKpis, setPersonKpis] = useState(null);
   
   // Estados Proyección Actuarial Individual
-  const [personEdad, setPersonEdad] = useState(45);
+  const [personAnioNacimiento, setPersonAnioNacimiento] = useState(1980);
+  const [personAnioInicioAportes, setPersonAnioInicioAportes] = useState(2005);
   const [personEsperanzaVida, setPersonEsperanzaVida] = useState(15);
   const [personAnioReforma, setPersonAnioReforma] = useState(2027);
   const [personTasaAporteActual, setPersonTasaAporteActual] = useState(16);
@@ -177,11 +178,18 @@ function App() {
        histPorAnio[ultimoAnio] = (histPorAnio[ultimoAnio] / mesesUltimoAnio) * 13;
     }
     
-    const edadAlUltimoAnio = personEdad;
-    const anioNacimiento = ultimoAnio - edadAlUltimoAnio;
+    const anioNacimiento = personAnioNacimiento;
+    const edadActual = ultimoAnio - anioNacimiento;
+    const aniosAporteActual = ultimoAnio - personAnioInicioAportes;
     
-    const edadRetiroTarget = 65;
-    const anioRetiro = anioNacimiento + edadRetiroTarget;
+    // Regla de jubilación general (aprox. la que caiga primero en asegurar edad madura + años de aporte base ej: 62 de edad y 20 de antigüedad)
+    const anioRetiroPorEdad = anioNacimiento + 62;
+    const anioRetiroPorAntiguedad = personAnioInicioAportes + 20;
+    const anioRetiro = Math.max(anioRetiroPorEdad, anioRetiroPorAntiguedad);
+
+    // Data para el panel explicativo ciudadano
+    const edadAlRetiro = anioRetiro - anioNacimiento;
+    const antiguedadAlRetiro = anioRetiro - personAnioInicioAportes;
     
     let vpaAportes = 0;
     
@@ -283,6 +291,10 @@ function App() {
 
     setPersonActuarial({
        anioRetiro,
+       edadAlRetiro,
+       antiguedadAlRetiro,
+       primerBeneficioVitalicio,
+       tasaSustitucion,
        vpaAportes,
        vpaBeneficios,
        labels: edadesProyeccion.map(String),
@@ -290,7 +302,7 @@ function App() {
        ingresosPasivos: ingresosPasivoProj
     });
 
-  }, [personData, personEdad, personEsperanzaVida, personAnioReforma, personTasaAporteActual, personTasaAporteNueva, personCrecimiento, personInflacion, personTasaSustitucion]);
+  }, [personData, personAnioNacimiento, personAnioInicioAportes, personEsperanzaVida, personAnioReforma, personTasaAporteActual, personTasaAporteNueva, personCrecimiento, personInflacion, personTasaSustitucion]);
 
   const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     const conn = await database.connect();
@@ -889,8 +901,12 @@ function App() {
           
           <div style={{display: 'flex', gap: '20px', marginBottom: '25px', flexWrap: 'wrap'}}>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>¿Qué edad tiene hoy?</label>
-              <input type="number" value={personEdad} onChange={e => setPersonEdad(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año Nacimiento</label>
+              <input type="number" value={personAnioNacimiento} onChange={e => setPersonAnioNacimiento(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año de Ingreso (Aportes)</label>
+              <input type="number" value={personAnioInicioAportes} onChange={e => setPersonAnioInicioAportes(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Años Vida tras Jubilación</label>
@@ -929,6 +945,20 @@ function App() {
           {personActuarial && (
              <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
                 <div style={{flex: '1 1 300px'}}>
+                  <h4 style={{margin: '0 0 15px 0', color: '#475569'}}>Glosario Ciudadano de su Retiro</h4>
+                  
+                  <div style={{backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6', padding: '15px', borderRadius: '4px', marginBottom: '20px'}}>
+                    <h5 style={{margin: '0 0 10px 0', color: '#1e3a8a', fontSize: '1.05rem'}}>¿Cuándo y cómo me jubilaré?</h5>
+                    <p style={{margin: '0 0 8px 0', fontSize: '0.9rem', lineHeight: '1.5', color: '#334155'}}>
+                      Basado en tu biografía laboral, alcanzarás los requisitos en el <strong>año {personActuarial.anioRetiro}</strong>. 
+                      Para ese entonces tendrás <strong>{personActuarial.edadAlRetiro} años de edad</strong> y habrás aportado al Estado por <strong>{personActuarial.antiguedadAlRetiro} años de antigüedad</strong>.
+                    </p>
+                    <p style={{margin: 0, fontSize: '0.9rem', lineHeight: '1.5', color: '#334155'}}>
+                      Al jubilarte en {personActuarial.anioRetiro}, se te promete pagar el <strong>{(personActuarial.tasaSustitucion * 100).toFixed(0)}%</strong> de tu salario activo. 
+                      Esto significa que tu primer sueldo como jubilado sería aproximadamente de <strong>{formatCurrency(personActuarial.primerBeneficioVitalicio)} mensuales</strong> (a valores reales futuros considerando tu progresión salarial regular y la inflación).
+                    </p>
+                  </div>
+
                   <h4 style={{margin: '0 0 15px 0', color: '#475569'}}>Resultados Financieros (Valor Presente)</h4>
                   <ul style={{listStyle: 'none', padding: 0, margin: 0, fontSize: '0.95rem'}}>
                     <li style={{marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0'}}>
