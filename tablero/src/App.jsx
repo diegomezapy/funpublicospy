@@ -76,7 +76,10 @@ function App() {
   
   // Estados Proyección Actuarial Individual
   const [personEdad, setPersonEdad] = useState(45);
-  const [personSexo, setPersonSexo] = useState('Hombre');
+  const [personEsperanzaVida, setPersonEsperanzaVida] = useState(15);
+  const [personAnioReforma, setPersonAnioReforma] = useState(2027);
+  const [personTasaAporteActual, setPersonTasaAporteActual] = useState(16);
+  const [personTasaAporteNueva, setPersonTasaAporteNueva] = useState(16);
   const [personCrecimiento, setPersonCrecimiento] = useState(0.02);
   const [personInflacion, setPersonInflacion] = useState(0.04);
   const [personTasaSustitucion, setPersonTasaSustitucion] = useState(1.0);
@@ -195,7 +198,8 @@ function App() {
     // 1. Fase Histórica (Pasado Conocido)
     for(let a = primerAnio; a <= ultimoAnio; a++) {
        const cobradoEseAnio = histPorAnio[a] || 0;
-       const aporte = cobradoEseAnio * 0.16;
+       const tasaAporteHist = a >= personAnioReforma ? (personTasaAporteNueva / 100) : (personTasaAporteActual / 100);
+       const aporte = cobradoEseAnio * tasaAporteHist;
        
        // Capitalizar al año de retiro
        vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - a);
@@ -240,7 +244,8 @@ function App() {
            let minimoInflacionario = ultimoSueldoAnual * (1 + inflacion);
            ultimoSueldoAnual = Math.max(forecastLineal, minimoInflacionario);
            
-           const aporte = ultimoSueldoAnual * 0.16;
+           const tasaAporteProy = anioSiguiente >= personAnioReforma ? (personTasaAporteNueva / 100) : (personTasaAporteActual / 100);
+           const aporte = ultimoSueldoAnual * tasaAporteProy;
            vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - anioSiguiente);
        }
        baseJubilatoriaAnual = ultimoSueldoAnual;
@@ -252,7 +257,7 @@ function App() {
     }
     
     // 3. Fase Proyectada Pasiva (Jubilación hasta Esperanza de Vida)
-    const esperanzaV = personSexo === 'Mujer' ? 18 : 15;
+    const esperanzaV = personEsperanzaVida;
     const anioMuerte = anioRetiro + esperanzaV;
     let vpaBeneficios = 0;
     
@@ -285,7 +290,7 @@ function App() {
        ingresosPasivos: ingresosPasivoProj
     });
 
-  }, [personData, personEdad, personSexo, personCrecimiento, personInflacion, personTasaSustitucion]);
+  }, [personData, personEdad, personEsperanzaVida, personAnioReforma, personTasaAporteActual, personTasaAporteNueva, personCrecimiento, personInflacion, personTasaSustitucion]);
 
   const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     const conn = await database.connect();
@@ -888,11 +893,20 @@ function App() {
               <input type="number" value={personEdad} onChange={e => setPersonEdad(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Sexo Biológico (Fórmula Mortalidad)</label>
-              <select value={personSexo} onChange={e => setPersonSexo(e.target.value)} style={{padding: '8px', width: '180px'}}>
-                <option value="Hombre">Hombre (Menor sobrevida)</option>
-                <option value="Mujer">Mujer (Mayor sobrevida)</option>
-              </select>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Años Vida tras Jubilación</label>
+              <input type="number" value={personEsperanzaVida} onChange={e => setPersonEsperanzaVida(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año de Reforma de Ley</label>
+              <input type="number" value={personAnioReforma} onChange={e => setPersonAnioReforma(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Aporte PRE-Reforma (%)</label>
+              <input type="number" step="0.5" value={personTasaAporteActual} onChange={e => setPersonTasaAporteActual(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Aporte POS-Reforma (%)</label>
+              <input type="number" step="0.5" value={personTasaAporteNueva} onChange={e => setPersonTasaAporteNueva(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Tasa de Sustitución Prometida</label>

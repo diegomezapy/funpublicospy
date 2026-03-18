@@ -32,6 +32,7 @@ const CajaFiscalPanel = () => {
   const [crecimientoReal, setCrecimientoReal] = useState(0.02);
   const [inflacion, setInflacion] = useState(0.04);
   const [salarioBase, setSalarioBase] = useState(3000000);
+  const [tasaAporte, setTasaAporte] = useState(16);
   
   const [tirCalculada, setTirCalculada] = useState(null);
   const [diagnostico, setDiagnostico] = useState('');
@@ -86,7 +87,7 @@ const CajaFiscalPanel = () => {
     for(let t=0; t < añosAporte; t++){
         const sal = salarioBase * Math.pow((1 + crecNominal), t);
         salarios.push(sal);
-        const aporteAnual = sal * 0.16;
+        const aporteAnual = sal * (tasaAporte / 100);
         aportes.push(-aporteAnual); 
         
         edades.push(edadIngreso + t);
@@ -292,6 +293,11 @@ const CajaFiscalPanel = () => {
             <div style={{display: 'flex', flexDirection: 'column'}}>
               <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Inflación Anual Esperada</label>
               <input type="number" step="0.01" value={inflacion} onChange={e => setInflacion(Number(e.target.value))} style={{padding: '8px'}} />
+            </div>
+
+            <div style={{display: 'flex', flexDirection: 'column'}}>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Tasa de Aporte (%)</label>
+              <input type="number" step="0.5" value={tasaAporte} onChange={e => setTasaAporte(Number(e.target.value))} style={{padding: '8px'}} />
             </div>
           </div>
           
