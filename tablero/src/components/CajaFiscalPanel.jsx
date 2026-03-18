@@ -90,13 +90,13 @@ const CajaFiscalPanel = () => {
     // Evaluación Actuarial
     const crecNominal = parseFloat(crecimientoReal) + parseFloat(inflacion);
     if(isNaN(tir)) {
-        setDiagnostico("La dinámica de flujos no permite converger una TIR (Pérdida Crónica Absoluta o Error).");
+        setDiagnostico("Los datos de esta simulación no permiten calcular una rentabilidad válida (Pérdida absoluta).");
     } else if (tir > crecNominal + 0.02) {
-        setDiagnostico(`Subsidio Activo Detectado. La rentabilidad absorbida del sistema (${(tir*100).toFixed(1)}%) supera excesivamente al crecimiento orgánico de la riqueza de la economía (${(crecNominal*100).toFixed(1)}%). Esta persona extrae capital ajeno (impuestos o del resto de trabajadores).`);
+        setDiagnostico(`Subsidio Detectado: Estás recibiendo una ganancia anual del ${(tir*100).toFixed(1)}%. Esto es mucho mayor al crecimiento normal de la economía (${(crecNominal*100).toFixed(1)}%). El beneficio que recibes es pagado en parte con el dinero (impuestos/aportes) del resto de la ciudadanía.`);
     } else if (tir < crecNominal - 0.02) {
-        setDiagnostico(`Confiscatorio. La tasa implícita que entrega el sistema es inferior a la tasa que rinde la economía real, el sistema licúa ahorros en esta cohorte.`);
+        setDiagnostico(`Pérdida de Ahorros: El beneficio que recibes es inferior a lo que crecería tu dinero normalmente. Estás subsidiando a los demás y perdiendo rendimiento.`);
     } else {
-        setDiagnostico(`Actuarialmente Equilibrado (Samuelson-Aaron Limit). El sistema devuelve el peso exacto del ahorro acumulado considerando las tasas de crecimiento orgánicas.`);
+        setDiagnostico(`Sistema Justo y Equilibrado: Recibes exactamente lo correspondiente a tus años de aporte y al crecimiento esperado.`);
     }
   };
 
@@ -148,7 +148,7 @@ const CajaFiscalPanel = () => {
               label += ': ';
             }
             if(context.raw === -50) {
-              return "TIR Indeterminada (Déficit Perpetuo desde Base Cero)";
+              return "Ganancia Indeterminada (Déficit / Depende full de Impuestos)";
             }
             if (context.parsed.x !== null) {
               label += context.parsed.x.toFixed(1) + '%';
@@ -160,7 +160,7 @@ const CajaFiscalPanel = () => {
     },
     scales: {
       x: {
-        title: { display: true, text: 'Rentabilidad Financiera Extraída de la Caja (%)', font: {weight: 'bold'} },
+        title: { display: true, text: 'Nivel de Ganancia (Rentabilidad) Obtenido sobre el Aporte (%)', font: {weight: 'bold'} },
         min: -60,
         ticks: {
           callback: function(value) {
@@ -179,10 +179,10 @@ const CajaFiscalPanel = () => {
     <div className="dashboard-container" style={{maxWidth: '1200px', margin: '0 auto', padding: '20px'}}>
       
       <div style={{textAlign: 'center', marginBottom: '40px'}}>
-        <h2 style={{color: '#0f172a'}}>Estudio Actuarial de la Seguridad Social Paraguaya (Caja Fiscal)</h2>
+        <h2 style={{color: '#0f172a'}}>¿Quién Paga Realmente las Jubilaciones? (Caja Fiscal)</h2>
         <p style={{color: '#64748b', maxWidth: '800px', margin: '0 auto'}}>
-          Este módulo cuantifica algorítmicamente el desbalance financiero subyacente a las promesas de reparto estatal. 
-          Utiliza la ecuación de equivalencia de Newton-Raphson para despejar la "Tasa Implícita de Retorno (TIR)" del aportante frente al estado.
+          Descubre si los funcionarios públicos reciben beneficios justos por lo que aportaron durante sus vidas, 
+          o si están recibiendo súper-ganancias que se pagan quitándole dinero (impuestos o caja común) al resto de la ciudadanía.
         </p>
       </div>
 
@@ -190,29 +190,29 @@ const CajaFiscalPanel = () => {
         
         {/* Panel Interactivo Individual */}
         <div style={{flex: '1 1 400px', backgroundColor: '#f8fafc', padding: '25px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}>
-          <h3 style={{marginTop: 0, color: '#334155', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px'}}>Calculadora Actuarial de Subsidos (Cohortes)</h3>
-          <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '20px'}}>Modifica los umbrales de trabajo de un funcionario para ver cómo alteran el costo sistémico.</p>
+          <h3 style={{marginTop: 0, color: '#334155', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px'}}>Calculadora Personal de Jubilación</h3>
+          <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '20px'}}>Prueba con distintos números de edad y salario para descubrir si en tu caso recibes un subsidio o sales perdiendo.</p>
           
           <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px'}}>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Edad Inicial de Aporte</label>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Edad al empezar a trabajar</label>
               <input type="number" value={edadIngreso} onChange={e => setEdadIngreso(Number(e.target.value))} style={{padding: '8px'}} />
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Edad de Jubilación</label>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Edad en la que te jubilas</label>
               <input type="number" value={edadRetiro} onChange={e => setEdadRetiro(Number(e.target.value))} style={{padding: '8px'}} />
             </div>
             
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Años de Vida tras Retiro</label>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Cuántos años vas a vivir jubilado</label>
               <input type="number" value={esperanzaVida} onChange={e => setEsperanzaVida(Number(e.target.value))} style={{padding: '8px'}} />
             </div>
             <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Tasa de Sustitución Prometida</label>
+              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Porcentaje de salario a cobrar</label>
               <select value={tasaSustitucion} onChange={e => setTasaSustitucion(Number(e.target.value))} style={{padding: '8px'}}>
-                <option value={1.0}>100% Promedio</option>
-                <option value={0.93}>93% Extraordinario</option>
-                <option value={0.6}>60% Capitalización</option>
+                <option value={1.0}>100% (Administrativos)</option>
+                <option value={0.93}>93% (Docentes)</option>
+                <option value={0.6}>60% (Capitalización priv.)</option>
               </select>
             </div>
           </div>
@@ -223,13 +223,13 @@ const CajaFiscalPanel = () => {
           
           {tirCalculada !== null && (
             <div style={{marginTop: '25px', padding: '15px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px'}}>
-              <h4 style={{margin: '0 0 10px 0', color: '#475569'}}>Resultado de la Tasa Interna de Retorno</h4>
+              <h4 style={{margin: '0 0 10px 0', color: '#475569'}}>Resultado de la Comparación</h4>
               
               <div style={{display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '10px'}}>
                 <span style={{fontSize: '2.5rem', fontWeight: 'bold', color: isNaN(tirCalculada) ? '#ef4444' : (tirCalculada > 0.1 ? '#f59e0b' : '#10b981')}}>
-                  {isNaN(tirCalculada) ? "Indet." : `${(tirCalculada * 100).toFixed(2)}%`}
+                  {isNaN(tirCalculada) ? "Error / Desmedido" : `${(tirCalculada * 100).toFixed(2)}%`}
                 </span>
-                <span style={{color: '#64748b'}}>TIR Anual Implícita</span>
+                <span style={{color: '#64748b'}}>Ganancia Anual de tu Jubilación</span>
               </div>
               
               <p style={{fontSize: '0.9rem', lineHeight: '1.5', margin: 0, paddingLeft: '10px', borderLeft: `4px solid ${isNaN(tirCalculada) ? '#ef4444' : '#f59e0b'}`}}>
@@ -242,15 +242,15 @@ const CajaFiscalPanel = () => {
         {/* Panel Macro Gráfico */}
         <div style={{flex: '1 1 500px', display:'flex', flexDirection:'column'}}>
           <div style={{backgroundColor: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', flex: 1, minHeight: '400px'}}>
-             <h3 style={{marginTop: 0, textAlign: 'center'}}>Resultados Históricos Puros (Dataset Caja Fiscal 2011-2025)</h3>
-             <p style={{fontSize: '0.85rem', color: '#64748b', textAlign: 'center'}}>Observación empírica de flujos reales de ingresos vs egresos por programa.</p>
+             <h3 style={{marginTop: 0, textAlign: 'center'}}>Radiografía de la Realidad Paraguaya (Datos 2011-2025)</h3>
+             <p style={{fontSize: '0.85rem', color: '#64748b', textAlign: 'center'}}>Niveles de rentabilidad/ganancia demostrada que reciben las personas dependiendo de su gremio o sector.</p>
              
              <div style={{position: 'relative', height: '350px', width: '100%', marginTop: '20px'}}>
                <Bar data={dataEmpirica} options={chartOptions} />
              </div>
           </div>
           <div style={{marginTop: '15px', fontSize: '0.85rem', color: '#64748b', padding: '15px', backgroundColor: '#f1f5f9', borderRadius: '4px'}}>
-             <strong>Contexto Actuarial:</strong> Un programa o seguro equilibrado que no estafa intergeneracionalmente debería tener una TIR cercana a la tasa natural de crecimiento y dividendo de la economía (aprox 6%-8% global para PY). Rentabilidades empíricas del +300% demuestran la extracción parasitaria de recursos ajenos. Los sectores mostrados como "Indeterminados" están en la vereda opuesta: han dependido 100% de subsidios generales ajenos, fallando el requisito de equivalencia matemática financiera para computarse como autárquicos.
+             <strong>¿Cómo interpretar este gráfico?</strong> Una ganancia o rentabilidad justa debiera reflejar la inflación del país más un pequeño premio (aproximadamente 6% a 8%). Los gremios militares y judiciales demuestran ganancias desmedidas que sobrepasan el enorme y exuberante límite del  <strong>+300% de ganancia extra por encima de su ahorro.</strong> Esos altísimos regalos y ganancias los termina avalando y pagando el Estado usando dinero y ahorro de la gente común, creando un círculo insostenible para el país.<br/><br/>Los sectores catalogados como "Indeterminado" indican que ni siquiera acumularon ahorros base (caja con plata) para financiarse, sino que ya arrancan con millonarios agujeros negros crónicos pagados con deudas de todos.
           </div>
         </div>
 

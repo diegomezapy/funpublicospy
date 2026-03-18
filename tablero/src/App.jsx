@@ -399,6 +399,29 @@ function App() {
       };
     });
 
+    const dataTotalPromedio = uniqueLabels.map(label => {
+      const [anio, mes] = label.split('-');
+      const rowsMonth = globalData.filter(d => String(d.anio) === anio && String(d.mes).padStart(2, '0') === mes);
+      const totalFuncs = rowsMonth.reduce((sum, d) => sum + d.cantidad_funcionarios_unicos, 0);
+      const totalGastoMonth = rowsMonth.reduce((sum, d) => sum + d.monto_total_gastado, 0);
+      return totalFuncs > 0 ? (totalGastoMonth / totalFuncs) : null;
+    });
+
+    const datasetTotalPromedio = {
+      label: 'PROMEDIO GENERAL',
+      data: dataTotalPromedio,
+      type: 'line',
+      borderColor: '#0f172a',
+      backgroundColor: '#0f172a',
+      borderWidth: 3,
+      borderDash: [5, 5],
+      fill: false,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 6,
+      order: -1
+    };
+
     const dataGasto = {
       labels: uniqueLabels,
       datasets: [...datasetsGasto, datasetTotalGasto]
@@ -406,7 +429,7 @@ function App() {
 
     const dataPromedio = {
       labels: uniqueLabels,
-      datasets: datasetsPromedio
+      datasets: [...datasetsPromedio, datasetTotalPromedio]
     };
 
     // --- Datos de Composición (Último Mes) ---
