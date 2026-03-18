@@ -4,16 +4,20 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend
@@ -31,6 +35,12 @@ const CajaFiscalPanel = () => {
   
   const [tirCalculada, setTirCalculada] = useState(null);
   const [diagnostico, setDiagnostico] = useState('');
+  
+  const [vpaAportes, setVpaAportes] = useState(0);
+  const [vpaBeneficios, setVpaBeneficios] = useState(0);
+  const [datosGraficoLinea, setDatosGraficoLinea] = useState(null);
+  
+  const formatMoney = (val) => new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(val);
   
   // Implementación recursiva nativa JS de Newton-Raphson para VNA=0
   const calcularTIR = (flujos) => {
@@ -59,17 +69,32 @@ const CajaFiscalPanel = () => {
 
   const handleCalcularTIR = () => {
     const añosAporte = edadRetiro - edadIngreso;
+    const crecNominal = parseFloat(crecimientoReal) + parseFloat(inflacion);
+    const tasaDescuento = crecNominal; // Tasa de descuento base macroeconómica
     
     // Arrays de simulación
     let aportes = [];
     let beneficios = [];
     
+    let edades = [];
+    let ingresosActivo = [];
+    let ingresosPasivo = [];
+    let vpaAportesSum = 0;
+    
     // 1. Array Salarios Anuales Proyectados
     let salarios = [];
     for(let t=0; t < añosAporte; t++){
-        const sal = salarioBase * Math.pow((1 + parseFloat(crecimientoReal) + parseFloat(inflacion)), t);
+        const sal = salarioBase * Math.pow((1 + crecNominal), t);
         salarios.push(sal);
-        aportes.push(-(sal * 0.16)); // El funcionario aporta el 16% de todos sus salarios percibidos
+        const aporteAnual = sal * 0.16;
+        aportes.push(-aporteAnual); 
+        
+        edades.push(edadIngreso + t);
+        ingresosActivo.push(sal * 13); // Aguinaldo
+        ingresosPasivo.push(null);
+        
+        // VPA de aportes al momento de retiro: capitalizamos los aportes
+        vpaAportesSum += aporteAnual * Math.pow((1 + tasaDescuento), añosAporte - t - 1);
     }
     
     // 2. Regulador (Últimos 5 años)
@@ -78,17 +103,55 @@ const CajaFiscalPanel = () => {
     
     const beneficio_anual_base = salario_regulador * parseFloat(tasaSustitucion) * 13; // + Aguinaldo
     
+    let vpaBeneficiosSum = 0;
     for(let t=0; t < esperanzaVida; t++){
-        beneficios.push(beneficio_anual_base * Math.pow((1 + parseFloat(inflacion)), t));
+        const beneficio = beneficio_anual_base * Math.pow((1 + parseFloat(inflacion)), t);
+        beneficios.push(beneficio);
+        
+        edades.push(edadRetiro + t);
+        ingresosActivo.push(null);
+        ingresosPasivo.push(beneficio);
+        
+        // VPA de beneficios al momento de retiro: actualizamos hacia R
+        vpaBeneficiosSum += beneficio / Math.pow((1 + tasaDescuento), t);
     }
     
+    // Empalme visual para que el gráfico no se rompa abruptamente en el año de jubilación
+    ingresosActivo[ingresosActivo.length - 1] = salarios[salarios.length - 1] * 13;
+    ingresosPasivo[0] = beneficio_anual_base;
+
     const flujosVida = [...aportes, ...beneficios];
     
     const tir = calcularTIR(flujosVida);
     setTirCalculada(tir);
+    setVpaAportes(vpaAportesSum);
+    setVpaBeneficios(vpaBeneficiosSum);
+
+    setDatosGraficoLinea({
+      labels: edades.map(e => String(e)),
+      datasets: [
+        {
+          label: 'Salario Anual Equivalente (Activo)',
+          data: ingresosActivo,
+          borderColor: '#3b82f6',
+          backgroundColor: '#3b82f6',
+          borderWidth: 2,
+          tension: 0.1,
+          spanGaps: true
+        },
+        {
+          label: 'Pensión Anual (Jubilado)',
+          data: ingresosPasivo,
+          borderColor: '#10b981',
+          backgroundColor: '#10b981',
+          borderWidth: 2,
+          tension: 0.1,
+          spanGaps: true
+        }
+      ]
+    });
     
     // Evaluación Actuarial
-    const crecNominal = parseFloat(crecimientoReal) + parseFloat(inflacion);
     if(isNaN(tir)) {
         setDiagnostico("Los datos de esta simulación no permiten calcular una rentabilidad válida (Pérdida absoluta).");
     } else if (tir > crecNominal + 0.02) {
@@ -232,9 +295,25 @@ const CajaFiscalPanel = () => {
                 <span style={{color: '#64748b'}}>Ganancia Anual de tu Jubilación</span>
               </div>
               
-              <p style={{fontSize: '0.9rem', lineHeight: '1.5', margin: 0, paddingLeft: '10px', borderLeft: `4px solid ${isNaN(tirCalculada) ? '#ef4444' : '#f59e0b'}`}}>
+              <p style={{fontSize: '0.9rem', lineHeight: '1.5', margin: 0, paddingLeft: '10px', borderLeft: `4px solid ${isNaN(tirCalculada) ? '#ef4444' : '#f59e0b'}`, marginBottom: '15px'}}>
                 <strong>Diagnóstico:</strong> {diagnostico}
               </p>
+
+              {/* Valores Actuariales */}
+              <div style={{display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0'}}>
+                  <span style={{color: '#64748b'}}>Valor Presente de tus Aportes:</span>
+                  <strong style={{color: '#334155'}}>{formatMoney(vpaAportes)}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fcf8f8', borderRadius: '4px', border: '1px solid #fecdd3'}}>
+                  <span style={{color: '#64748b'}}>Valor Presente de tus Beneficios:</span>
+                  <strong style={{color: '#e11d48'}}>{formatMoney(vpaBeneficios)}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: (vpaAportes - vpaBeneficios) >= 0 ? '#f0fdf4' : '#fef2f2', borderRadius: '4px', border: '1px solid ' + ((vpaAportes - vpaBeneficios) >= 0 ? '#bbf7d0' : '#fecaca')}}>
+                  <span style={{color: '#475569', fontWeight: 'bold'}}>Balance (Déficit/Superávit):</span>
+                  <strong style={{color: (vpaAportes - vpaBeneficios) >= 0 ? '#15803d' : '#b91c1c', fontSize: '1rem'}}>{formatMoney(vpaAportes - vpaBeneficios)}</strong>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -254,6 +333,39 @@ const CajaFiscalPanel = () => {
           </div>
         </div>
 
+      </div>
+
+      <div style={{marginTop: '30px', backgroundColor: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+        <h3 style={{marginTop: 0, textAlign: 'center'}}>Línea de Vida Financiera: Trabajar vs Jubilarse</h3>
+        <p style={{fontSize: '0.85rem', color: '#64748b', textAlign: 'center'}}>Evolución de tus ingresos nominales esperados a lo largo del tiempo (Eje X: Edad).</p>
+        <div style={{position: 'relative', height: '350px', width: '100%', marginTop: '20px'}}>
+          {datosGraficoLinea && <Line data={datosGraficoLinea} options={{
+             responsive: true,
+             maintainAspectRatio: false,
+             plugins: {
+               tooltip: {
+                 callbacks: {
+                   label: function(context) {
+                     return context.dataset.label + ': ' + formatMoney(context.raw);
+                   }
+                 }
+               }
+             },
+             scales: {
+               x: {
+                 title: { display: true, text: 'Edad del Funcionario', font: {weight: 'bold'} }
+               },
+               y: {
+                 title: { display: true, text: 'Ingresos Anuales (PYG)', font: {weight: 'bold'} },
+                 ticks: {
+                   callback: function(value) {
+                     return new Intl.NumberFormat('es-PY', { notation: "compact", compactDisplay: "short" }).format(value);
+                   }
+                 }
+               }
+             }
+          }} />}
+        </div>
       </div>
     </div>
   );
