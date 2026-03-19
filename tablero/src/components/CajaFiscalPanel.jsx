@@ -799,26 +799,29 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.2rem', marginBottom: '1.4rem', minHeight: 0 }}>
-        <div className="chart-container" style={{ marginBottom: 0, minHeight: 0 }}>
+        {/* Balance anual */}
+        <div style={{ background: 'var(--card-bg)', backdropFilter: 'blur(16px)', padding: '2rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.4)', boxShadow: 'var(--shadow-glass)', overflow: 'hidden', minWidth: 0 }}>
           <h3 className="chart-title">Balance anual proyectado</h3>
-          <p style={{ color: palette.muted, marginTop: '-0.6rem', marginBottom: '1rem' }}>
-            Las barras muestran la inercia financiera sin cambios legales. La línea verde representa el mismo sistema bajo reforma. Cuando la línea sigue debajo de cero, la reforma mejora, pero todavía no resuelve completamente el problema estructural.
+          <p style={{ color: palette.muted, marginTop: '-0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Las barras muestran la inercia financiera sin cambios legales. La línea verde representa el mismo sistema bajo reforma.
           </p>
-          <div style={{ position: 'relative', height: '320px' }}>
+          <div style={{ position: 'relative', height: '280px', overflow: 'hidden' }}>
             <Bar data={balanceData} options={barOptions} />
           </div>
         </div>
 
-        <div className="chart-container" style={{ marginBottom: 0, minHeight: 0 }}>
+        {/* Reserva acumulada */}
+        <div style={{ background: 'var(--card-bg)', backdropFilter: 'blur(16px)', padding: '2rem', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.4)', boxShadow: 'var(--shadow-glass)', overflow: 'hidden', minWidth: 0 }}>
           <h3 className="chart-title">Reserva acumulada o necesidad de financiamiento</h3>
-          <p style={{ color: palette.muted, marginTop: '-0.6rem', marginBottom: '1rem' }}>
-            Este gráfico traduce el flujo anual a una narrativa más intuitiva. Cuando la curva cae por debajo de cero, el régimen ya requiere financiamiento fiscal explícito o endeudamiento para sostener las prestaciones.
+          <p style={{ color: palette.muted, marginTop: '-0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Cuando la curva cae por debajo de cero, el régimen requiere financiamiento fiscal explícito.
           </p>
-          <div style={{ position: 'relative', height: '320px' }}>
+          <div style={{ position: 'relative', height: '280px', overflow: 'hidden' }}>
             <Line data={reserveData} options={reserveOptions} />
           </div>
         </div>
       </div>
+
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: '1.2rem', marginBottom: '1.4rem' }}>
         <section style={sectionCardStyle}>
