@@ -767,30 +767,30 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
         </div>
       </section>
 
-      <section className="kpi-grid" style={{ marginBottom: '1.4rem' }}>
-        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
+      <section style={{ marginBottom: '1.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left', overflow: 'hidden' }}>
           <span className="kpi-title">Balance anual al cierre del horizonte, sin reforma</span>
-          <span className="kpi-value" style={{ color: lastBaseline.balance >= 0 ? palette.green : palette.red }}>{formatMoney(lastBaseline.balance)}</span>
+          <span className="kpi-value" style={{ color: lastBaseline.balance >= 0 ? palette.green : palette.red, fontSize: '1.35rem', wordBreak: 'break-word', lineHeight: 1.2 }}>{formatCompact(lastBaseline.balance)} Gs.</span>
           <div style={{ color: palette.muted, fontSize: '0.88rem', marginTop: '0.55rem' }}>Presión final {lastBaseline.pressure.toFixed(2)}x</div>
         </div>
-        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
+        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left', overflow: 'hidden' }}>
           <span className="kpi-title">Balance anual al cierre del horizonte, con reforma</span>
-          <span className="kpi-value" style={{ color: lastReform.balance >= 0 ? palette.green : palette.red }}>{formatMoney(lastReform.balance)}</span>
+          <span className="kpi-value" style={{ color: lastReform.balance >= 0 ? palette.green : palette.red, fontSize: '1.35rem', wordBreak: 'break-word', lineHeight: 1.2 }}>{formatCompact(lastReform.balance)} Gs.</span>
           <div style={{ color: palette.muted, fontSize: '0.88rem', marginTop: '0.55rem' }}>Presión final {lastReform.pressure.toFixed(2)}x</div>
         </div>
-        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
+        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left', overflow: 'hidden' }}>
           <span className="kpi-title">Reserva agotada, sin reforma</span>
           <span className="kpi-value" style={{ fontSize: '1.8rem', color: depletionBase ? palette.red : palette.green }}>{depletionBase || 'No se agota'}</span>
           <div style={{ color: palette.muted, fontSize: '0.88rem', marginTop: '0.55rem' }}>Cruce gasto/ingreso &gt; 1: {pressureBaseYear || 'No ocurre'}</div>
         </div>
-        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left' }}>
+        <div className="kpi-card" style={{ alignItems: 'flex-start', textAlign: 'left', overflow: 'hidden' }}>
           <span className="kpi-title">Reserva agotada, con reforma</span>
           <span className="kpi-value" style={{ fontSize: '1.8rem', color: depletionReform ? palette.amber : palette.green }}>{depletionReform || 'No se agota'}</span>
           <div style={{ color: palette.muted, fontSize: '0.88rem', marginTop: '0.55rem' }}>Cruce gasto/ingreso &gt; 1: {pressureReformYear || 'No ocurre'}</div>
         </div>
       </section>
 
-      <div className="chart-container" style={{ height: '500px' }}>
+      <div className="chart-container" style={{ height: '420px', marginBottom: '1.4rem' }}>
         <h3 className="chart-title">Trayectoria histórica y proyectada de ingresos y egresos</h3>
         <p style={{ color: palette.muted, marginTop: '-0.6rem', marginBottom: '1rem' }}>
           Las líneas continuas muestran la parte histórica calibrada. A partir de 2026, la comparación pasa a ser plenamente contrafactual. Así se ve de inmediato si el gasto previsional converge, se estabiliza o sigue desbordando a los ingresos contributivos.
