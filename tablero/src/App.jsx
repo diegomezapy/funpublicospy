@@ -1081,14 +1081,14 @@ function App() {
           className={`tab-btn ${activeTab === 'tir' ? 'active' : ''}`}
           onClick={() => setActiveTab('tir')}
         >
-          Estudio Actuarial (Caja Fiscal)
+          Escenarios de Sostenibilidad
         </button>
       </div>
 
       <main>
         {activeTab === 'general' && renderGlobalCharts()}
         
-        {activeTab === 'tir' && <CajaFiscalPanel />}
+        {activeTab === 'tir' && <CajaFiscalPanel globalData={globalData} />}
         
         {activeTab === 'particular' && (
           <>
