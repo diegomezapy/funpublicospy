@@ -201,11 +201,7 @@ function App() {
     let ingresosActivoProj = [];
     let ingresosPasivoProj = [];
     
-    // Sueldo Anual Promedio (Ultimos 5 años reales)
-    const ultimos5 = añosReales.slice(-5);
-    const sumaUltimos5 = ultimos5.reduce((sum, a) => sum + histPorAnio[a], 0);
-    const sueldoAnualPromedio = sumaUltimos5 / ultimos5.length;
-    let baseJubilatoriaAnual = sueldoAnualPromedio; 
+
 
     // 1. Fase Histórica (Pasado Conocido)
     for(let a = primerAnio; a <= ultimoAnio; a++) {
@@ -243,25 +239,34 @@ function App() {
     // Si la regresión es negativa, asumimos estabilidad (0)
     if (slope < 0) slope = 0;
 
-    let anioSiguiente = ultimoAnio + 1;
-    let ultimoSueldoAnual = histPorAnio[ultimoAnio];
-    
+    // ============================================================
+    // BASE JUBILATORIA — Conforme a la Ley de Caja Fiscal:
+    // promedio del sueldo mensual de los últimos 60 meses REALES
+    // (5 años observados en las planillas históricas registradas),
+    // anualizado x12. NO se usa el valor proyectado futuro.
+    // ============================================================
+    const ultimos60Meses = [...personData]
+      .sort((a, b) => (a.anio * 100 + a.mes) - (b.anio * 100 + b.mes))
+      .slice(-60);  // últimos 60 meses (o todos si hay menos)
+    const promedioMensual60 = ultimos60Meses.length > 0
+      ? ultimos60Meses.reduce((s, d) => s + d.monto_total_mes, 0) / ultimos60Meses.length
+      : (histPorAnio[ultimoAnio] || 0) / 12;
+    const baseJubilatoriaAnual = promedioMensual60 * 12;  // constante, no se proyecta
+
     while(anioSiguiente <= anioRetiro) {
        if(anioSiguiente < anioRetiro) {
-           // Proyección por Serie de Tiempo
+           // Proyección por Serie de Tiempo (solo para el gráfico de trayectoria activa)
            let x_futuro = anioSiguiente - primerAnio;
            let forecastLineal = slope * x_futuro + intercept;
-           
-           // Aseguramos que mínimo empate con la inflación para no perder poder adquisitivo base
+
            let minimoInflacionario = ultimoSueldoAnual * (1 + inflacion);
            ultimoSueldoAnual = Math.max(forecastLineal, minimoInflacionario);
-           
+
            const tasaAporteProy = anioSiguiente >= personAnioReforma ? (personTasaAporteNueva / 100) : (personTasaAporteActual / 100);
            const aporte = ultimoSueldoAnual * tasaAporteProy;
            vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - anioSiguiente);
        }
-       baseJubilatoriaAnual = ultimoSueldoAnual;
-       
+       // NO se actualiza baseJubilatoriaAnual aquí — queda igual al promedio real
        edadesProyeccion.push(anioSiguiente);
        ingresosActivoProj.push(ultimoSueldoAnual);
        ingresosPasivoProj.push(null);
@@ -297,7 +302,10 @@ function App() {
        anioRetiro,
        edadAlRetiro,
        antiguedadAlRetiro,
-       primerBeneficioVitalicio,
+       primerBeneficioVitalicio,        // = baseJubilatoriaAnual * tasaSustitucion
+       primerBeneficioMensual: baseJubilatoriaAnual / 12 * tasaSustitucion,
+       promedioMensual60,               // para mostrar la base de referencia
+       mesesReferencia: ultimos60Meses.length,
        tasaSustitucion,
        vpaAportes,
        vpaBeneficios,
@@ -945,49 +953,56 @@ function App() {
           <h3 style={{marginTop: 0, color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px'}}>Estudio Actuarial Personalizado</h3>
           <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '20px'}}>Complete sus datos biológicos para que el algoritmo determine su fecha de jubilación proyectada y compare el valor presente de los impuestos que el Estado ahorró desde que empezó a trabajar vs el valor de los beneficios que le tendrá que pagar hasta su fallecimiento.</p>
           
-          <div style={{display: 'flex', gap: '20px', marginBottom: '25px', flexWrap: 'wrap'}}>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año Nacimiento</label>
-              <input type="number" value={personAnioNacimiento} onChange={e => setPersonAnioNacimiento(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año de Ingreso (Aportes)</label>
-              <input type="number" value={personAnioInicioAportes} onChange={e => setPersonAnioInicioAportes(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Años Vida tras Jubilación</label>
-              <input type="number" value={personEsperanzaVida} onChange={e => setPersonEsperanzaVida(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Año de Reforma de Ley</label>
-              <input type="number" value={personAnioReforma} onChange={e => setPersonAnioReforma(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Aporte PRE-Reforma (%)</label>
-              <input type="number" step="0.5" value={personTasaAporteActual} onChange={e => setPersonTasaAporteActual(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Aporte POS-Reforma (%)</label>
-              <input type="number" step="0.5" value={personTasaAporteNueva} onChange={e => setPersonTasaAporteNueva(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>Tasa de Sustitución Prometida</label>
-              <select value={personTasaSustitucion} onChange={e => setPersonTasaSustitucion(Number(e.target.value))} style={{padding: '8px', width: '180px'}}>
-                <option value={1.0}>100% (Administrativos)</option>
-                <option value={0.93}>93% (Docentes)</option>
-                <option value={0.6}>60% (Capitalización priv.)</option>
+          {/* ---- Sliders del Estimador Actuarial Individual ---- */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(270px,1fr))', gap:'1rem', marginBottom:'1.5rem'}}>
+
+            {[{
+              label:'Ño de nacimiento', val:personAnioNacimiento, set:setPersonAnioNacimiento,
+              min:1940, max:2005, step:1, fmt:v=>String(v)
+            },{
+              label:'Año de inicio de aportes', val:personAnioInicioAportes, set:setPersonAnioInicioAportes,
+              min:1970, max:2024, step:1, fmt:v=>String(v)
+            },{
+              label:'Esperanza de vida post-retiro', val:personEsperanzaVida, set:setPersonEsperanzaVida,
+              min:5, max:40, step:1, fmt:v=>v+' años'
+            },{
+              label:'Aporte actual (sueldo %)', val:personTasaAporteActual, set:setPersonTasaAporteActual,
+              min:5, max:30, step:0.5, fmt:v=>Number(v).toFixed(1)+'%'
+            },{
+              label:'Aporte post-reforma (sueldo %)', val:personTasaAporteNueva, set:setPersonTasaAporteNueva,
+              min:5, max:30, step:0.5, fmt:v=>Number(v).toFixed(1)+'%'
+            },{
+              label:'Crecimiento real anual', val:personCrecimiento, set:setPersonCrecimiento,
+              min:0, max:0.10, step:0.005, fmt:v=>(Number(v)*100).toFixed(1)+'%'
+            },{
+              label:'Inflación anual', val:personInflacion, set:setPersonInflacion,
+              min:0, max:0.20, step:0.005, fmt:v=>(Number(v)*100).toFixed(1)+'%'
+            }].map(({label,val,set,min,max,step,fmt}) => (
+              <div key={label} style={{background:'rgba(248,250,252,0.95)', borderRadius:'12px', padding:'0.8rem 1rem', border:'1px solid #e2e8f0'}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'0.4rem'}}>
+                  <span style={{fontSize:'0.78rem', fontWeight:700, color:'#475569'}}>{label}</span>
+                  <span style={{fontSize:'0.85rem', fontWeight:800, color:'#0f766e'}}>{fmt(val)}</span>
+                </div>
+                <input type="range" min={min} max={max} step={step} value={val}
+                  onChange={e => set(Number(e.target.value))}
+                  style={{width:'100%', accentColor:'#0f766e', cursor:'pointer'}} />
+              </div>
+            ))}
+
+            {/* Tasa de sustitución */}
+            <div style={{background:'rgba(248,250,252,0.95)', borderRadius:'12px', padding:'0.8rem 1rem', border:'1px solid #e2e8f0'}}>
+              <div style={{fontSize:'0.78rem', fontWeight:700, color:'#475569', marginBottom:'0.5rem'}}>Tasa de sustitución prometida</div>
+              <select value={personTasaSustitucion} onChange={e => setPersonTasaSustitucion(Number(e.target.value))}
+                style={{width:'100%', padding:'0.4rem 0.6rem', borderRadius:'8px', border:'1px solid #cbd5e1', fontSize:'0.85rem', background:'#fff'}}>
+                <option value={1.0}>100% — Administrativos / Policías</option>
+                <option value={0.93}>93% — Docentes</option>
+                <option value={0.80}>80% — Escenario reforma parcial</option>
+                <option value={0.60}>60% — Capitalización individual</option>
               </select>
             </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>% Crecimiento Real PBI</label>
-              <input type="number" step="0.01" value={personCrecimiento} onChange={e => setPersonCrecimiento(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
-            <div style={{display: 'flex', flexDirection: 'column'}}>
-              <label style={{fontSize: '0.85rem', fontWeight: 'bold'}}>% Inflación Anual</label>
-              <input type="number" step="0.01" value={personInflacion} onChange={e => setPersonInflacion(Number(e.target.value))} style={{padding: '8px', width: '150px'}} />
-            </div>
           </div>
-          
+
+
           {personActuarial && (
              <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
                 <div style={{flex: '1 1 300px'}}>
