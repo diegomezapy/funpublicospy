@@ -102,6 +102,8 @@ function App() {
         // Registrar archivos usando BASE_URL para soportar Github Pages
         const baseUrl = import.meta.env.BASE_URL;
         await mydb.registerFileURL('totales.parquet', `${baseUrl}database/totales_historicos.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
+        await mydb.registerFileURL('cedulas.parquet', `${baseUrl}database/cedula_fechanacim.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
+        await mydb.registerFileURL('proyecciones.parquet', `${baseUrl}database/proyecciones_demograficas.parquet`, duckdb.DuckDBDataProtocol.HTTP, false);
         
         // Registrar Parquets por año (2015 a 2026)
         const anios = Array.from({length: 2026 - 2015 + 1}, (_, i) => 2015 + i);
@@ -362,12 +364,16 @@ function App() {
     // Consultar DuckDB para esa cédula específica escaneando todos los Parquets Anuales
     const conn = await db.connect();
     try {
-      // GLOB function de DuckDB o arreglo con pattern
+      // Consulta principal con JOIN a cedula_fechanacim para obtener fecha de nacimiento y sexo
       const query = `
-        SELECT anio, mes, entidad_principal, monto_total_mes 
-        FROM read_parquet('nomina_*.parquet') 
-        WHERE cedula = '${cedulaInput}' AND anio <= 2025
-        ORDER BY anio, mes
+        SELECT n.anio, n.mes, n.entidad_principal, n.monto_total_mes,
+               c.anio_nacim, c.mes_nacim, c.dia_nacim, c.sexo,
+               (n.anio - COALESCE(c.anio_nacim, 0) +
+                CASE WHEN n.mes >= COALESCE(c.mes_nacim, 1) THEN 0 ELSE -1 END) AS edad_en_mes
+        FROM read_parquet('nomina_*.parquet') n
+        LEFT JOIN 'cedulas.parquet' c ON CAST(n.cedula AS BIGINT) = c.nro_cedula
+        WHERE n.cedula = '${cedulaInput}' AND n.anio <= 2025
+        ORDER BY n.anio, n.mes
       `;
       const result = await conn.query(query);
       const rows = result.toArray().map(r => {
@@ -404,12 +410,27 @@ function App() {
         const ultimo_mes_val = rows[rows.length - 1].mes;
         const entidades_actuales = Array.from(new Set(rows.filter(r => r.anio === ultimo_anio && r.mes === ultimo_mes_val).map(r => r.entidad_principal))).join(' / ');
 
+        // Datos biográficos desde cedula_fechanacim
+        const anio_nacim = rows[0].anio_nacim || null;
+        const mes_nacim  = rows[0].mes_nacim  || null;
+        const sexo       = rows[0].sexo       || '?';
+        const edad_actual = anio_nacim ? (ultimo_anio - anio_nacim) : null;
+
         setPersonKpis({
           max_salario,
           promedio: sum_salarios / rows.length,
           aumento_pct: aumento,
-          entidad_actual: entidades_actuales
+          entidad_actual: entidades_actuales,
+          anio_nacim,
+          mes_nacim,
+          sexo,
+          edad_actual,
         });
+
+        // Pre-poblar el estimador actuarial si tenemos año de nacimiento
+        if (anio_nacim) {
+          setPersonAnioNacimiento(anio_nacim);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -844,6 +865,12 @@ function App() {
 
     return (
       <>
+        {/* Badge biográfico */}
+        {personKpis.anio_nacim && (
+          <div style={{ display:'inline-flex', alignItems:'center', gap:'0.5rem', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'999px', padding:'0.35rem 0.9rem', marginBottom:'1rem', fontSize:'0.82rem', color:'#15803d', fontWeight:700 }}>
+            🎂 Datos biográficos encontrados en la base de cédulas del Estado — año de nacimiento pre-cargado en el estimador actuarial
+          </div>
+        )}
         <div className="kpi-grid">
            <div className="kpi-card">
               <span className="kpi-title">Entidad Actual</span>
@@ -860,6 +887,20 @@ function App() {
               </span>
               {tieneAnomalia && <span style={{color: 'var(--danger)', fontSize: '0.8rem', marginTop:'0.5rem'}}>Anomalía: Aumento Exuberante</span>}
            </div>
+           {personKpis.anio_nacim && (
+             <div className="kpi-card" style={{borderLeft:'4px solid #0f766e'}}>
+               <span className="kpi-title">Año de Nacimiento</span>
+               <span className="kpi-value" style={{color:'#0f766e', fontSize:'1.6rem'}}>{personKpis.anio_nacim}</span>
+               <span style={{fontSize:'0.8rem', color:'#64748b', marginTop:'0.3rem'}}>{personKpis.sexo === 'F' ? '♀ Mujer' : personKpis.sexo === 'M' ? '♂ Hombre' : 'Sexo no identificado'}</span>
+             </div>
+           )}
+           {personKpis.edad_actual && (
+             <div className="kpi-card" style={{borderLeft:'4px solid #7c3aed'}}>
+               <span className="kpi-title">Edad al último registro</span>
+               <span className="kpi-value" style={{color:'#7c3aed', fontSize:'1.6rem'}}>{personKpis.edad_actual} años</span>
+               <span style={{fontSize:'0.8rem', color:'#64748b', marginTop:'0.3rem'}}>Calculada sobre nómina {personData[personData.length-1]?.anio}</span>
+             </div>
+           )}
         </div>
         
         <div className="chart-container">
