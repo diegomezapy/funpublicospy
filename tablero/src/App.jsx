@@ -1,3 +1,4 @@
+// v2026.03.20-r3 — actuarial fix: anioSiguiente declared, pension base=60m avg
 import { useState, useEffect, useCallback } from 'react';
 import * as duckdb from '@duckdb/duckdb-wasm';
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
