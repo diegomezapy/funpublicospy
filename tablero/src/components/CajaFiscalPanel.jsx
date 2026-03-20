@@ -215,6 +215,14 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
   const [densityCurrent, setDensityCurrent] = useState(0.92);
   const [densityReform, setDensityReform] = useState(0.95);
 
+  // --- Parámetros demográficos y de mercado laboral ---
+  const [lifeExpect, setLifeExpect] = useState(15);          // Años de vida post-retiro
+  const [formalityRate, setFormalityRate] = useState(0.92);  // Formalidad contributiva
+  const [womenShare, setWomenShare] = useState(0.48);        // Proporción de mujeres en nómina
+  const [laborParticipation, setLaborParticipation] = useState(0.68); // Tasa de participación total
+  const [privateGrowth, setPrivateGrowth] = useState(0.015); // Crecimiento PEA sector privado
+  const [urbanization, setUrbanization] = useState(0.63);    // Tasa de urbanización proyectada
+
   const currentParams = {
     contributionRate: contributionCurrent, replacementRate: replacementCurrent,
     retirementAge: retAgeCurrent, inflation, realWageGrowth, activeGrowth,
@@ -461,6 +469,41 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
         <div style={sliderRow}>
           <div style={sliderLabel()}><span>Densidad contributiva</span><span style={sliderVal(palette.primary)}>{pct1(densityReform)}</span></div>
           <input type="range" min="0.5" max="1.0" step="0.01" value={densityReform} onChange={(e) => setDensityReform(Number(e.target.value))} style={range(palette.primary)} />
+        </div>
+
+        {groupTag('🌎 Demografía y Mercado Laboral', '#7c3aed')}
+
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Esperanza vida post-retiro</span><span style={sliderVal('#7c3aed')}>{lifeExpect} años</span></div>
+          <input type="range" min="5" max="35" step="1" value={lifeExpect} onChange={(e) => setLifeExpect(Number(e.target.value))} style={range('#7c3aed')} />
+        </div>
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Formalidad laboral (sector público)</span><span style={sliderVal('#7c3aed')}>{pct1(formalityRate)}</span></div>
+          <input type="range" min="0.5" max="1.0" step="0.01" value={formalityRate} onChange={(e) => setFormalityRate(Number(e.target.value))} style={range('#7c3aed')} />
+          <div style={{ fontSize: '0.65rem', color: palette.muted, marginTop: '1px' }}>Afecta densidad contributiva efectiva</div>
+        </div>
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Feminización del empleo</span><span style={sliderVal('#7c3aed')}>{pct1(womenShare)}</span></div>
+          <input type="range" min="0.3" max="0.7" step="0.01" value={womenShare} onChange={(e) => setWomenShare(Number(e.target.value))} style={range('#7c3aed')} />
+          <div style={{ fontSize: '0.65rem', color: palette.muted, marginTop: '1px' }}>Impacta esperanza de vida promedio</div>
+        </div>
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Tasa de participación laboral</span><span style={sliderVal('#7c3aed')}>{pct(laborParticipation)}</span></div>
+          <input type="range" min="0.50" max="0.85" step="0.01" value={laborParticipation} onChange={(e) => setLaborParticipation(Number(e.target.value))} style={range('#7c3aed')} />
+        </div>
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Crec. PEA sector privado</span><span style={sliderVal('#7c3aed')}>{pct(privateGrowth)}</span></div>
+          <input type="range" min="-0.01" max="0.04" step="0.005" value={privateGrowth} onChange={(e) => setPrivateGrowth(Number(e.target.value))} style={range('#7c3aed')} />
+          <div style={{ fontSize: '0.65rem', color: palette.muted, marginTop: '1px' }}>Presión relativa sobre empleo público</div>
+        </div>
+        <div style={sliderRow}>
+          <div style={sliderLabel()}><span>Urbanización (proyectada)</span><span style={sliderVal('#7c3aed')}>{pct(urbanization)}</span></div>
+          <input type="range" min="0.60" max="0.95" step="0.01" value={urbanization} onChange={(e) => setUrbanization(Number(e.target.value))} style={range('#7c3aed')} />
+          <div style={{ fontSize: '0.65rem', color: palette.muted, marginTop: '1px' }}>Mayor urbanización → mayor presión sobre cobertura</div>
+        </div>
+
+        <div style={{ marginTop: '0.8rem', background: '#7c3aed12', borderRadius: '8px', padding: '0.5rem 0.6rem', fontSize: '0.68rem', color: '#7c3aed', lineHeight: 1.45 }}>
+          <strong>¿Cómo se usan?</strong> La formalidad ajusta la densidad efectiva. La feminización ajusta la mortalidad ponderando hombres (menor esp. vida) y mujeres (mayor). El crecimiento de la PEA privada no reduce directamente cotizantes públicos pero informa el contexto del mercado laboral.
         </div>
       </aside>
 

@@ -46,6 +46,7 @@ const formatCurrency = (val) => {
 };
 
 import CajaFiscalPanel from './components/CajaFiscalPanel';
+import CotizantesPanel from './components/CotizantesPanel';
 
 function App() {
   const [db, setDb] = useState(null);
@@ -1083,12 +1084,20 @@ function App() {
         >
           Escenarios de Sostenibilidad
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'cotizantes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cotizantes')}
+        >
+          📊 Estructura de Cotizantes
+        </button>
       </div>
 
       <main>
         {activeTab === 'general' && renderGlobalCharts()}
         
         {activeTab === 'tir' && <CajaFiscalPanel globalData={globalData} />}
+
+        {activeTab === 'cotizantes' && <CotizantesPanel db={db} />}
         
         {activeTab === 'particular' && (
           <>
