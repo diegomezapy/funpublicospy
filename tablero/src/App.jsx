@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as duckdb from '@duckdb/duckdb-wasm';
 import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
@@ -44,6 +44,9 @@ const MANUAL_BUNDLES = {
 const formatCurrency = (val) => {
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(val);
 };
+
+const escapeSqlValue = (value) => String(value ?? '').replace(/'/g, "''");
+const sanitizeCedulaInput = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 12);
 
 import CajaFiscalPanel from './components/CajaFiscalPanel';
 import CotizantesPanel from './components/CotizantesPanel';
@@ -182,8 +185,6 @@ function App() {
     }
     
     const anioNacimiento = personAnioNacimiento;
-    const edadActual = ultimoAnio - anioNacimiento;
-    const aniosAporteActual = ultimoAnio - personAnioInicioAportes;
     
     // Regla de jubilación general (aprox. la que caiga primero en asegurar edad madura + años de aporte base ej: 62 de edad y 20 de antigüedad)
     const anioRetiroPorEdad = anioNacimiento + 62;
@@ -307,21 +308,18 @@ function App() {
 
   }, [personData, personAnioNacimiento, personAnioInicioAportes, personEsperanzaVida, personAnioReforma, personTasaAporteActual, personTasaAporteNueva, personCrecimiento, personInflacion, personTasaSustitucion]);
 
-  const loadGlobalData = async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
+  const loadGlobalData = useCallback(async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
+    if (!database) return;
     const conn = await database.connect();
     try {
-      let whereClauses = [];
-      if (s !== 'Todos') whereClauses.push(`sexo_canon = '${s}'`);
-      if (c !== 'Todos') whereClauses.push(`tipo_contrato = '${c}'`);
-      if (e !== 'Todas') whereClauses.push(`entidad_principal = '${e.replace(/'/g, "''")}'`);
-      if (conc !== 'Todos') whereClauses.push(`concepto = '${conc.replace(/'/g, "''")}'`);
-      
-      // Filtro rígido para ocultar el año en curso (2026) que entra incompleto
+      const whereClauses = [];
+      if (s !== 'Todos') whereClauses.push(`sexo_canon = '${escapeSqlValue(s)}'`);
+      if (c !== 'Todos') whereClauses.push(`tipo_contrato = '${escapeSqlValue(c)}'`);
+      if (e !== 'Todas') whereClauses.push(`entidad_principal = '${escapeSqlValue(e)}'`);
+      if (conc !== 'Todos') whereClauses.push(`concepto = '${escapeSqlValue(conc)}'`);
       whereClauses.push(`anio <= 2025`);
-      
-      const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
-      // Leer el parquet hiper ligero agrupado globalmente
+      const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
       const query = `
         SELECT anio, mes, gran_grupo, 
                CAST(SUM(monto_total_gastado) AS BIGINT) as monto_total_gastado, 
@@ -337,34 +335,41 @@ function App() {
         ORDER BY anio, mes
       `;
       const result = await conn.query(query);
-      
+
       const rows = result.toArray().map(r => {
         const row = r.toJSON();
-        for (let key in row) {
-          if (typeof row[key] === 'bigint') {
-            row[key] = Number(row[key]);
-          }
+        for (const key in row) {
+          if (typeof row[key] === 'bigint') row[key] = Number(row[key]);
         }
         return row;
       });
       setGlobalData(rows);
     } catch (err) {
       console.error(err);
-      setError("Error cargando datos globales.");
+      setError('Error cargando datos globales.');
     } finally {
       await conn.close();
     }
-  };
+  }, [filtroSexo, filtroContrato, filtroEntidad, filtroConcepto]);
 
   const handleSearchClick = async () => {
-    if (!cedulaInput) return;
+    const cedulaSanitizada = sanitizeCedulaInput(cedulaInput);
+    if (!cedulaSanitizada) {
+      setError('Ingrese una cédula válida, solo dígitos.');
+      setPersonData([]);
+      setPersonKpis(null);
+      return;
+    }
+    if (!db) {
+      setError('La base analítica aún no está lista.');
+      return;
+    }
+    if (cedulaSanitizada !== cedulaInput) setCedulaInput(cedulaSanitizada);
     setError('');
     setSearching(true);
-    
-    // Consultar DuckDB para esa cédula específica escaneando todos los Parquets Anuales
+
     const conn = await db.connect();
     try {
-      // Consulta principal con JOIN a cedula_fechanacim para obtener fecha de nacimiento y sexo
       const query = `
         SELECT n.anio, n.mes, n.entidad_principal, n.monto_total_mes,
                c.anio_nacim, c.mes_nacim, c.dia_nacim, c.sexo,
@@ -372,49 +377,44 @@ function App() {
                 CASE WHEN n.mes >= COALESCE(c.mes_nacim, 1) THEN 0 ELSE -1 END) AS edad_en_mes
         FROM read_parquet('nomina_*.parquet') n
         LEFT JOIN 'cedulas.parquet' c ON CAST(n.cedula AS BIGINT) = c.nro_cedula
-        WHERE n.cedula = '${cedulaInput}' AND n.anio <= 2025
+        WHERE CAST(n.cedula AS VARCHAR) = '${cedulaSanitizada}' AND n.anio <= 2025
         ORDER BY n.anio, n.mes
       `;
       const result = await conn.query(query);
       const rows = result.toArray().map(r => {
         const row = r.toJSON();
-        for (let key in row) {
-          if (typeof row[key] === 'bigint') {
-            row[key] = Number(row[key]);
-          }
+        for (const key in row) {
+          if (typeof row[key] === 'bigint') row[key] = Number(row[key]);
         }
         return row;
       });
-      
+
       if (rows.length === 0) {
         setPersonData([]);
         setPersonKpis(null);
       } else {
         setPersonData(rows);
-        
-        // Calcular sus KPIs historicos
+
         let max_salario = 0;
         let sum_salarios = 0;
-        let diff_promedio = 0; // Anomalía básica: Cuánto aumentó vs su primero
-        
+
         rows.forEach(r => {
           if (r.monto_total_mes > max_salario) max_salario = r.monto_total_mes;
           sum_salarios += r.monto_total_mes;
         });
-        
+
         const primer_mes = rows[0].monto_total_mes;
         const ultimo_mes = rows[rows.length - 1].monto_total_mes;
         const aumento = ((ultimo_mes - primer_mes) / (primer_mes || 1)) * 100;
-        
+
         const ultimo_anio = rows[rows.length - 1].anio;
         const ultimo_mes_val = rows[rows.length - 1].mes;
         const entidades_actuales = Array.from(new Set(rows.filter(r => r.anio === ultimo_anio && r.mes === ultimo_mes_val).map(r => r.entidad_principal))).join(' / ');
 
-        // Datos biográficos desde cedula_fechanacim
         const anio_nacim = rows[0].anio_nacim || null;
         const mes_nacim  = rows[0].mes_nacim  || null;
         const sexo       = rows[0].sexo       || '?';
-        const edad_actual = anio_nacim ? (ultimo_anio - anio_nacim) : null;
+        const edad_actual = rows[rows.length - 1].edad_en_mes ?? (anio_nacim ? (ultimo_anio - anio_nacim) : null);
 
         setPersonKpis({
           max_salario,
@@ -427,22 +427,26 @@ function App() {
           edad_actual,
         });
 
-        // Pre-poblar el estimador actuarial si tenemos año de nacimiento
         if (anio_nacim) {
           setPersonAnioNacimiento(anio_nacim);
         }
       }
     } catch (err) {
       console.error(err);
-      setError("Error buscando la cédula.");
+      setError('Error buscando la cédula.');
     } finally {
       await conn.close();
       setSearching(false);
     }
   };
 
+
   const clearSearch = () => {
     setCedulaInput('');
+    setPersonData([]);
+    setPersonKpis(null);
+    setPersonActuarial(null);
+    setError('');
   };
 
   // =============== RENDERIZADOS DE GRÁFICOS ===============
@@ -1106,6 +1110,10 @@ function App() {
         <p>Monitor Ciudadano de Funcionarios Públicos</p>
       </header>
 
+      <div className="audit-banner">
+        <strong>Lectura responsable:</strong> los paneles descriptivos muestran principalmente vínculos de pago y montos observados en la base histórica. Los escenarios de sostenibilidad e inferencias individuales son aproximaciones analíticas, no dictámenes administrativos ni actuariales definitivos.
+      </div>
+
       <div className="tabs">
         <button 
           className={`tab-btn ${activeTab === 'general' ? 'active' : ''}`}
@@ -1146,11 +1154,13 @@ function App() {
               <h2>Consultar Funcionario</h2>
               <div className="search-box">
                 <input 
-                  type="number" 
+                  type="text" 
+                  inputMode="numeric" 
+                  pattern="[0-9]*" 
                   className="search-input" 
                   placeholder="Ingrese Número de Cédula (Ej: 1000905)" 
                   value={cedulaInput}
-                  onChange={(e) => setCedulaInput(e.target.value)}
+                  onChange={(e) => setCedulaInput(sanitizeCedulaInput(e.target.value))}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                 />
                 <button 

@@ -353,7 +353,7 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
 
   /* ---- Estilos del sidebar ---- */
   const sliderRow = { display: 'flex', flexDirection: 'column', gap: '1px', marginBottom: '0.85rem' };
-  const sliderLabel = (color) => ({
+  const sliderLabel = () => ({
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     fontSize: '0.72rem', fontWeight: 700, color: palette.muted, textTransform: 'uppercase', letterSpacing: '0.04em',
   });

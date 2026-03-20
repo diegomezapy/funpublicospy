@@ -1,16 +1,33 @@
-# React + Vite
+# Transparencia Paraguay, tablero auditado
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web en React + Vite + DuckDB WASM para exploración de datos salariales y estructura de cotizantes del sector público paraguayo.
 
-Currently, two official plugins are available:
+## Estado de la auditoría
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Esta versión fue revisada para reducir fallas de operación y de interpretación. Incluye:
 
-## React Compiler
+- saneamiento de entrada para consultas por cédula
+- mejora de mensajes de error
+- corrección de un recurso CSS inválido
+- banner de lectura responsable para evitar sobreinterpretación
+- limpieza del estado de búsqueda
+- endurecimiento básico frente a inyecciones por filtros de texto
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Advertencias metodológicas
 
-## Expanding the ESLint configuration
+- Los paneles descriptivos generales trabajan con vínculos de pago y agregados administrativos, no siempre con personas únicas.
+- Los escenarios de sostenibilidad son simulaciones paramétricas. Sirven para dimensionar trayectorias y sensibilidades, no para reemplazar una valuación actuarial formal.
+- Antes de publicar la app, conviene validar el contenido de `public/database` y contrastar los resultados con cuadros oficiales.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Uso
+
+```bash
+npm install
+npm run dev
+```
+
+Para compilación de producción:
+
+```bash
+npm run build
+```
