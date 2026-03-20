@@ -253,6 +253,9 @@ function App() {
       : (histPorAnio[ultimoAnio] || 0) / 12;
     const baseJubilatoriaAnual = promedioMensual60 * 12;  // constante, no se proyecta
 
+    let anioSiguiente = ultimoAnio + 1;
+    let ultimoSueldoAnual = histPorAnio[ultimoAnio] || 0;
+
     while(anioSiguiente <= anioRetiro) {
        if(anioSiguiente < anioRetiro) {
            // Proyección por Serie de Tiempo (solo para el gráfico de trayectoria activa)
