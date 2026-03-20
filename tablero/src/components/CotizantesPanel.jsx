@@ -47,6 +47,7 @@ const CotizantesPanel = ({ db }) => {
   const [top20,        setTop20]        = useState([]);
   const [serieContrato,setSerieContrato]= useState([]);
   const [serieSexo,    setSerieSexo]    = useState([]);
+  const [totalDic,     setTotalDic]     = useState({});
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
   const [anioFiltro,   setAnioFiltro]   = useState(2024);
@@ -57,6 +58,22 @@ const CotizantesPanel = ({ db }) => {
       setLoading(true);
       try {
         const c = await db.connect();
+
+        // Q0 — total cédulas únicas en DICIEMBRE del año de referencia y el anterior
+        // (snapshot fin de año, una cédula = una persona, sin agrupamiento por sector)
+        const anios2 = [anioFiltro - 1, anioFiltro].filter(a => a >= 2015 && a <= 2025);
+        const totalMap = {};
+        for (const a of anios2) {
+          try {
+            const r0 = await c.query(`
+              SELECT COUNT(DISTINCT cedula) AS total
+              FROM 'nomina_${a}.parquet'
+              WHERE mes = 12
+            `);
+            totalMap[a] = Number(r0.toArray()[0]?.total ?? 0);
+          } catch { totalMap[a] = 0; }
+        }
+        setTotalDic(totalMap);
 
         // Q1 — cédulas únicas por gran_grupo y año (JOIN entidad→gran_grupo)
         const r1 = await c.query(`
@@ -71,7 +88,7 @@ const CotizantesPanel = ({ db }) => {
                  SUM(n.monto_total_mes)                    AS monto
           FROM read_parquet('nomina_*.parquet') n
           LEFT JOIN grupo_map gm ON n.entidad_principal = gm.entidad_principal
-          WHERE n.anio <= 2025
+          WHERE n.anio <= 2025 AND n.mes = 12
           GROUP BY n.anio, gran_grupo
           ORDER BY n.anio, funcionarios DESC
         `);
@@ -192,9 +209,9 @@ const CotizantesPanel = ({ db }) => {
     };
   }, [grupos, serieGrupo, anioFiltro]);
 
-  // KPIs de resumen
-  const totalActual   = useMemo(() => serieGrupo.filter(d => d.anio === anioFiltro).reduce((a, b) => a + b.funcionarios, 0), [serieGrupo, anioFiltro]);
-  const totalAnterior = useMemo(() => serieGrupo.filter(d => d.anio === anioFiltro - 1).reduce((a, b) => a + b.funcionarios, 0), [serieGrupo, anioFiltro]);
+  // KPIs de resumen — snapshot diciembre (una cédula = una persona, sin doble-conteo por sector)
+  const totalActual   = totalDic[anioFiltro]   ?? 0;
+  const totalAnterior = totalDic[anioFiltro-1] ?? 0;
   const pctCambio = totalAnterior > 0 ? ((totalActual - totalAnterior) / totalAnterior * 100).toFixed(1) : null;
   const permanentesActual = useMemo(() => serieContrato.filter(d => d.anio === anioFiltro && d.tipo === 'Permanente').reduce((a, b) => a + b.funcionarios, 0), [serieContrato, anioFiltro]);
   const contratadosActual = useMemo(() => serieContrato.filter(d => d.anio === anioFiltro && d.tipo === 'Contratado').reduce((a, b) => a + b.funcionarios, 0), [serieContrato, anioFiltro]);
