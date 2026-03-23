@@ -51,6 +51,7 @@ const sanitizeCedulaInput = (value) => String(value ?? '').replace(/\D/g, '').sl
 
 import CajaFiscalPanel from './components/CajaFiscalPanel';
 import CotizantesPanel from './components/CotizantesPanel';
+import SimuladorPensionPanel from './components/SimuladorPensionPanel';
 
 function App() {
   const [db, setDb] = useState(null);
@@ -1158,6 +1159,12 @@ function App() {
         >
           📊 Estructura de Cotizantes
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'simulador' ? 'active' : ''}`}
+          onClick={() => setActiveTab('simulador')}
+        >
+          🧮 Simulador Actuarial R
+        </button>
       </div>
 
       <main>
@@ -1166,7 +1173,9 @@ function App() {
         {activeTab === 'tir' && <CajaFiscalPanel globalData={globalData} />}
 
         {activeTab === 'cotizantes' && <CotizantesPanel db={db} />}
-        
+
+        {activeTab === 'simulador' && <SimuladorPensionPanel />}
+
         {activeTab === 'particular' && (
           <>
             <section className="search-section">
