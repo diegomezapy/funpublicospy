@@ -80,17 +80,7 @@ function App() {
   const [personData, setPersonData] = useState([]);
   const [personKpis, setPersonKpis] = useState(null);
   
-  // Estados Proyección Actuarial Individual
-  const [personAnioNacimiento, setPersonAnioNacimiento] = useState(1980);
-  const [personAnioInicioAportes, setPersonAnioInicioAportes] = useState(2005);
-  const [personEsperanzaVida, setPersonEsperanzaVida] = useState(15);
-  const [personAnioReforma, setPersonAnioReforma] = useState(2027);
-  const [personTasaAporteActual, setPersonTasaAporteActual] = useState(16);
-  const [personTasaAporteNueva, setPersonTasaAporteNueva] = useState(16);
-  const [personCrecimiento, setPersonCrecimiento] = useState(0.02);
-  const [personInflacion, setPersonInflacion] = useState(0.04);
-  const [personTasaSustitucion, setPersonTasaSustitucion] = useState(1.0);
-  const [personActuarial, setPersonActuarial] = useState(null);
+  // Estados Proyección Actuarial delegados a SimuladorPensionPanel
 
 // ... (Effect and query logic omitted logically as standard replacement practice, assuming I replace at the top and bottom)
 
@@ -157,169 +147,6 @@ function App() {
     }
   }, [filtroSexo, filtroContrato, filtroEntidad, filtroConcepto]);
 
-  useEffect(() => {
-    if (personData.length === 0) {
-      setPersonActuarial(null);
-      return;
-    }
-    
-    // Calcular Proyeccion Actuarial
-    const crecNominal = parseFloat(personCrecimiento) + parseFloat(personInflacion);
-    const tasaDescuento = crecNominal;
-    const inflacion = parseFloat(personInflacion);
-    const tasaSustitucion = parseFloat(personTasaSustitucion);
-    
-    // Agrupar historicals por año para simplificar la capitalizacion
-    let histPorAnio = {};
-    personData.forEach(d => {
-       if(!histPorAnio[d.anio]) histPorAnio[d.anio] = 0;
-       histPorAnio[d.anio] += d.monto_total_mes;
-    });
-    
-    const añosReales = Object.keys(histPorAnio).map(Number).sort();
-    const primerAnio = añosReales[0];
-    const ultimoAnio = añosReales[añosReales.length - 1];
-
-    // Corregir caída visual/actuarial si el último año reportado está incompleto
-    const mesesUltimoAnio = personData.filter(d => d.anio === ultimoAnio).length;
-    if (mesesUltimoAnio > 0 && mesesUltimoAnio < 12) {
-       histPorAnio[ultimoAnio] = (histPorAnio[ultimoAnio] / mesesUltimoAnio) * 13;
-    }
-    
-    const anioNacimiento = personAnioNacimiento;
-    
-    // Regla de jubilación general (aprox. la que caiga primero en asegurar edad madura + años de aporte base ej: 62 de edad y 20 de antigüedad)
-    const anioRetiroPorEdad = anioNacimiento + 62;
-    const anioRetiroPorAntiguedad = personAnioInicioAportes + 20;
-    const anioRetiro = Math.max(anioRetiroPorEdad, anioRetiroPorAntiguedad);
-
-    // Data para el panel explicativo ciudadano
-    const edadAlRetiro = anioRetiro - anioNacimiento;
-    const antiguedadAlRetiro = anioRetiro - personAnioInicioAportes;
-    
-    let vpaAportes = 0;
-    
-    let edadesProyeccion = [];
-    let ingresosActivoProj = [];
-    let ingresosPasivoProj = [];
-    
-
-
-    // 1. Fase Histórica (Pasado Conocido)
-    for(let a = primerAnio; a <= ultimoAnio; a++) {
-       const cobradoEseAnio = histPorAnio[a] || 0;
-       const tasaAporteHist = a >= personAnioReforma ? (personTasaAporteNueva / 100) : (personTasaAporteActual / 100);
-       const aporte = cobradoEseAnio * tasaAporteHist;
-       
-       // Capitalizar al año de retiro
-       vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - a);
-       
-       edadesProyeccion.push(a);
-       ingresosActivoProj.push(cobradoEseAnio);
-       ingresosPasivoProj.push(null);
-    }
-    
-    // Modelo de Serie de Tiempo (Regresión Lineal Simple) sobre el historial real
-    const nSeries = añosReales.length;
-    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    
-    añosReales.forEach(a => {
-       const x = a - primerAnio; // Normalizar X
-       const y = histPorAnio[a];
-       sumX += x;
-       sumY += y;
-       sumXY += (x * y);
-       sumX2 += (x * x);
-    });
-    
-    let slope = 0;
-    let intercept = histPorAnio[ultimoAnio] || 0;
-    if (nSeries > 1) {
-       slope = (nSeries * sumXY - sumX * sumY) / (nSeries * sumX2 - sumX * sumX);
-       intercept = (sumY - slope * sumX) / nSeries;
-    }
-    // Si la regresión es negativa, asumimos estabilidad (0)
-    if (slope < 0) slope = 0;
-
-    // ============================================================
-    // BASE JUBILATORIA — Conforme a la Ley de Caja Fiscal:
-    // promedio del sueldo mensual de los últimos 60 meses REALES
-    // (5 años observados en las planillas históricas registradas),
-    // anualizado x12. NO se usa el valor proyectado futuro.
-    // ============================================================
-    const ultimos60Meses = [...personData]
-      .sort((a, b) => (a.anio * 100 + a.mes) - (b.anio * 100 + b.mes))
-      .slice(-60);  // últimos 60 meses (o todos si hay menos)
-    const promedioMensual60 = ultimos60Meses.length > 0
-      ? ultimos60Meses.reduce((s, d) => s + d.monto_total_mes, 0) / ultimos60Meses.length
-      : (histPorAnio[ultimoAnio] || 0) / 12;
-    const baseJubilatoriaAnual = promedioMensual60 * 12;  // constante, no se proyecta
-
-    let anioSiguiente = ultimoAnio + 1;
-    let ultimoSueldoAnual = histPorAnio[ultimoAnio] || 0;
-
-    while(anioSiguiente <= anioRetiro) {
-       if(anioSiguiente < anioRetiro) {
-           // Proyección por Serie de Tiempo (solo para el gráfico de trayectoria activa)
-           let x_futuro = anioSiguiente - primerAnio;
-           let forecastLineal = slope * x_futuro + intercept;
-
-           let minimoInflacionario = ultimoSueldoAnual * (1 + inflacion);
-           ultimoSueldoAnual = Math.max(forecastLineal, minimoInflacionario);
-
-           const tasaAporteProy = anioSiguiente >= personAnioReforma ? (personTasaAporteNueva / 100) : (personTasaAporteActual / 100);
-           const aporte = ultimoSueldoAnual * tasaAporteProy;
-           vpaAportes += aporte * Math.pow((1 + tasaDescuento), anioRetiro - anioSiguiente);
-       }
-       // NO se actualiza baseJubilatoriaAnual aquí — queda igual al promedio real
-       edadesProyeccion.push(anioSiguiente);
-       ingresosActivoProj.push(ultimoSueldoAnual);
-       ingresosPasivoProj.push(null);
-       anioSiguiente++;
-    }
-    
-    // 3. Fase Proyectada Pasiva (Jubilación hasta Esperanza de Vida)
-    const esperanzaV = personEsperanzaVida;
-    const anioMuerte = anioRetiro + esperanzaV;
-    let vpaBeneficios = 0;
-    
-    const primerBeneficioVitalicio = baseJubilatoriaAnual * tasaSustitucion;
-    let beneficioCurrent = primerBeneficioVitalicio;
-    
-    for(let a = anioRetiro + 1; a <= anioMuerte; a++) {
-       beneficioCurrent = beneficioCurrent * (1 + inflacion);
-       
-       // Descontar al año de retiro (en t=0, que es anioRetiro)
-       vpaBeneficios += beneficioCurrent / Math.pow((1 + tasaDescuento), a - anioRetiro);
-       
-       edadesProyeccion.push(a);
-       ingresosActivoProj.push(null);
-       ingresosPasivoProj.push(beneficioCurrent);
-    }
-    
-    // Empalme visual (El bug del "disparo" se daba porque beneficioCurrent crecía en el loop)
-    const idxRetiro = edadesProyeccion.indexOf(anioRetiro);
-    if(idxRetiro >= 0) {
-      ingresosPasivoProj[idxRetiro] = primerBeneficioVitalicio;
-    }
-
-    setPersonActuarial({
-       anioRetiro,
-       edadAlRetiro,
-       antiguedadAlRetiro,
-       primerBeneficioVitalicio,        // = baseJubilatoriaAnual * tasaSustitucion
-       primerBeneficioMensual: baseJubilatoriaAnual / 12 * tasaSustitucion,
-       promedioMensual60,               // para mostrar la base de referencia
-       mesesReferencia: ultimos60Meses.length,
-       tasaSustitucion,
-       vpaAportes,
-       vpaBeneficios,
-       labels: edadesProyeccion.map(String),
-       ingresosActivos: ingresosActivoProj,
-       ingresosPasivos: ingresosPasivoProj
-    });
-
-  }, [personData, personAnioNacimiento, personAnioInicioAportes, personEsperanzaVida, personAnioReforma, personTasaAporteActual, personTasaAporteNueva, personCrecimiento, personInflacion, personTasaSustitucion]);
 
   const loadGlobalData = useCallback(async (database, s = filtroSexo, c = filtroContrato, e = filtroEntidad, conc = filtroConcepto) => {
     if (!database) return;
@@ -440,9 +267,6 @@ function App() {
           edad_actual,
         });
 
-        if (anio_nacim) {
-          setPersonAnioNacimiento(anio_nacim);
-        }
       }
     } catch (err) {
       console.error(err);
@@ -458,7 +282,6 @@ function App() {
     setCedulaInput('');
     setPersonData([]);
     setPersonKpis(null);
-    setPersonActuarial(null);
     setError('');
   };
 
@@ -953,160 +776,8 @@ function App() {
           </div>
         </div>
 
-        {/* Panel Actuarial Dinámico Integrado */}
-        <div style={{marginTop: '30px', backgroundColor: '#f8fafc', padding: '25px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}>
-          <h3 style={{marginTop: 0, color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px'}}>Estudio Actuarial Personalizado</h3>
-          <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '20px'}}>Complete sus datos biológicos para que el algoritmo determine su fecha de jubilación proyectada y compare el valor presente de los impuestos que el Estado ahorró desde que empezó a trabajar vs el valor de los beneficios que le tendrá que pagar hasta su fallecimiento.</p>
-          
-          {/* ---- Sliders del Estimador Actuarial Individual ---- */}
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(270px,1fr))', gap:'1rem', marginBottom:'1.5rem'}}>
-
-            {[{
-              label:'Ño de nacimiento', val:personAnioNacimiento, set:setPersonAnioNacimiento,
-              min:1940, max:2005, step:1, fmt:v=>String(v)
-            },{
-              label:'Año de inicio de aportes', val:personAnioInicioAportes, set:setPersonAnioInicioAportes,
-              min:1970, max:2024, step:1, fmt:v=>String(v)
-            },{
-              label:'Esperanza de vida post-retiro', val:personEsperanzaVida, set:setPersonEsperanzaVida,
-              min:5, max:40, step:1, fmt:v=>v+' años'
-            },{
-              label:'Aporte actual (sueldo %)', val:personTasaAporteActual, set:setPersonTasaAporteActual,
-              min:5, max:30, step:0.5, fmt:v=>Number(v).toFixed(1)+'%'
-            },{
-              label:'Aporte post-reforma (sueldo %)', val:personTasaAporteNueva, set:setPersonTasaAporteNueva,
-              min:5, max:30, step:0.5, fmt:v=>Number(v).toFixed(1)+'%'
-            },{
-              label:'Crecimiento real anual', val:personCrecimiento, set:setPersonCrecimiento,
-              min:0, max:0.10, step:0.005, fmt:v=>(Number(v)*100).toFixed(1)+'%'
-            },{
-              label:'Inflación anual', val:personInflacion, set:setPersonInflacion,
-              min:0, max:0.20, step:0.005, fmt:v=>(Number(v)*100).toFixed(1)+'%'
-            }].map(({label,val,set,min,max,step,fmt}) => (
-              <div key={label} style={{background:'rgba(248,250,252,0.95)', borderRadius:'12px', padding:'0.8rem 1rem', border:'1px solid #e2e8f0'}}>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'0.4rem'}}>
-                  <span style={{fontSize:'0.78rem', fontWeight:700, color:'#475569'}}>{label}</span>
-                  <span style={{fontSize:'0.85rem', fontWeight:800, color:'#0f766e'}}>{fmt(val)}</span>
-                </div>
-                <input type="range" min={min} max={max} step={step} value={val}
-                  onChange={e => set(Number(e.target.value))}
-                  style={{width:'100%', accentColor:'#0f766e', cursor:'pointer'}} />
-              </div>
-            ))}
-
-            {/* Tasa de sustitución */}
-            <div style={{background:'rgba(248,250,252,0.95)', borderRadius:'12px', padding:'0.8rem 1rem', border:'1px solid #e2e8f0'}}>
-              <div style={{fontSize:'0.78rem', fontWeight:700, color:'#475569', marginBottom:'0.5rem'}}>Tasa de sustitución prometida</div>
-              <select value={personTasaSustitucion} onChange={e => setPersonTasaSustitucion(Number(e.target.value))}
-                style={{width:'100%', padding:'0.4rem 0.6rem', borderRadius:'8px', border:'1px solid #cbd5e1', fontSize:'0.85rem', background:'#fff'}}>
-                <option value={1.0}>100% — Administrativos / Policías</option>
-                <option value={0.93}>93% — Docentes</option>
-                <option value={0.80}>80% — Escenario reforma parcial</option>
-                <option value={0.60}>60% — Capitalización individual</option>
-              </select>
-            </div>
-          </div>
-
-
-          {personActuarial && (
-             <div style={{display: 'flex', gap: '30px', flexWrap: 'wrap'}}>
-                <div style={{flex: '1 1 300px'}}>
-                  <h4 style={{margin: '0 0 15px 0', color: '#475569'}}>Glosario Ciudadano de su Retiro</h4>
-                  
-                  <div style={{backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6', padding: '15px', borderRadius: '4px', marginBottom: '20px'}}>
-                    <h5 style={{margin: '0 0 10px 0', color: '#1e3a8a', fontSize: '1.05rem'}}>¿Cuándo y cómo me jubilaré?</h5>
-                    <p style={{margin: '0 0 8px 0', fontSize: '0.9rem', lineHeight: '1.5', color: '#334155'}}>
-                      Basado en tu biografía laboral, alcanzarás los requisitos en el <strong>año {personActuarial.anioRetiro}</strong>. 
-                      Para ese entonces tendrás <strong>{personActuarial.edadAlRetiro} años de edad</strong> y habrás aportado al Estado por <strong>{personActuarial.antiguedadAlRetiro} años de antigüedad</strong>.
-                    </p>
-                    <p style={{margin: 0, fontSize: '0.9rem', lineHeight: '1.5', color: '#334155'}}>
-                      Al jubilarte en {personActuarial.anioRetiro}, se te promete pagar el <strong>{(personActuarial.tasaSustitucion * 100).toFixed(0)}%</strong> de tu salario activo. 
-                      Esto significa que tu primer sueldo como jubilado sería aproximadamente de <strong>{formatCurrency(personActuarial.primerBeneficioVitalicio)} mensuales</strong> (a valores reales futuros considerando tu progresión salarial regular y la inflación).
-                    </p>
-                  </div>
-
-                  <h4 style={{margin: '0 0 15px 0', color: '#475569'}}>Resultados Financieros (Valor Presente)</h4>
-                  <ul style={{listStyle: 'none', padding: 0, margin: 0, fontSize: '0.95rem'}}>
-                    <li style={{marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0'}}>
-                      <strong>Año Clave de Jubilación Estimada:</strong> <br/>
-                      <span style={{color: '#3b82f6', fontWeight: 'bold', fontSize: '1.2rem'}}>{personActuarial.anioRetiro}</span>
-                    </li>
-                    <li style={{marginBottom: '10px'}}>
-                      <span style={{color: '#64748b'}}>Valor de Aportes Pagados Exigidos al Funcionario:</span> <br/>
-                      <strong>{formatCurrency(personActuarial.vpaAportes)}</strong>
-                    </li>
-                    <li style={{marginBottom: '10px'}}>
-                      <span style={{color: '#64748b'}}>Valor de Beneficios Pagados por el Estado:</span> <br/>
-                      <strong>{formatCurrency(personActuarial.vpaBeneficios)}</strong>
-                    </li>
-                    <li style={{marginTop: '20px', padding: '15px', backgroundColor: (personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#f0fdf4' : '#fef2f2', border: '1px solid ' + ((personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#bbf7d0' : '#fecaca'), borderRadius: '6px'}}>
-                       <strong style={{color: '#334155'}}>Balance (Déficit / Superávit para el País):</strong> <br/>
-                       <span style={{fontSize: '1.4rem', color: (personActuarial.vpaAportes - personActuarial.vpaBeneficios) >= 0 ? '#15803d' : '#b91c1c', fontWeight: 'bold'}}>
-                         {formatCurrency(personActuarial.vpaAportes - personActuarial.vpaBeneficios)}
-                       </span>
-                    </li>
-                  </ul>
-                </div>
-                
-                <div style={{flex: '1 1 500px', minHeight: '350px'}}>
-                  <h4 style={{margin: '0 0 10px 0', color: '#475569', textAlign: 'center'}}>Evolución Vitalícia (Pasado vs Futuro)</h4>
-                  <div style={{position: 'relative', height: '320px'}}>
-                    <Line data={{
-                      labels: personActuarial.labels,
-                      datasets: [
-                        {
-                          label: 'Ingresos Históricos + Proyectados (Activo)',
-                          data: personActuarial.ingresosActivos,
-                          borderColor: '#3b82f6',
-                          backgroundColor: '#3b82f6',
-                          tension: 0.2,
-                          borderWidth: 2,
-                          pointRadius: 1,
-                          spanGaps: true
-                        },
-                        {
-                          label: 'Pensión Probable (Jubilado)',
-                          data: personActuarial.ingresosPasivos,
-                          borderColor: '#10b981',
-                          backgroundColor: '#10b981',
-                          tension: 0.2,
-                          borderWidth: 3,
-                          borderDash: [5, 5],
-                          pointRadius: 1,
-                          spanGaps: true
-                        }
-                      ]
-                    }} options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              return context.dataset.label + ': ' + formatCurrency(context.raw);
-                            }
-                          }
-                        }
-                      },
-                      scales: {
-                        x: {
-                          title: { display: true, text: 'Edad / Año', font: {weight: 'bold'} }
-                        },
-                        y: {
-                          title: { display: true, text: 'Monto Anualizado (PYG)', font: {weight: 'bold'} },
-                          ticks: {
-                            callback: function(value) {
-                              return new Intl.NumberFormat('es-PY', { notation: "compact", compactDisplay: "short" }).format(value);
-                            }
-                          }
-                        }
-                      }
-                    }} />
-                  </div>
-                </div>
-             </div>
-          )}
-        </div>
+        {/* Panel Actuarial Dinámico Integrado (Delegado) */}
+        <SimuladorPensionPanel personData={personData} personKpis={personKpis} cedula={cedulaInput} />
 
         <div style={{textAlign: 'center', marginBottom: '2rem', marginTop: '2rem'}}>
            <button className="btn-secondary" onClick={clearSearch}>Limpiar Búsqueda</button>
@@ -1159,12 +830,6 @@ function App() {
         >
           📊 Estructura de Cotizantes
         </button>
-        <button 
-          className={`tab-btn ${activeTab === 'simulador' ? 'active' : ''}`}
-          onClick={() => setActiveTab('simulador')}
-        >
-          🧮 Simulador Actuarial R
-        </button>
       </div>
 
       <main>
@@ -1174,7 +839,6 @@ function App() {
 
         {activeTab === 'cotizantes' && <CotizantesPanel db={db} />}
 
-        {activeTab === 'simulador' && <SimuladorPensionPanel />}
 
         {activeTab === 'particular' && (
           <>
