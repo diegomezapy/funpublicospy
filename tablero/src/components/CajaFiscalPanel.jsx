@@ -223,17 +223,25 @@ const CajaFiscalPanel = ({ globalData = [] }) => {
   const [privateGrowth, setPrivateGrowth] = useState(0.015); // Crecimiento PEA sector privado
   const [urbanization, setUrbanization] = useState(0.63);    // Tasa de urbanización proyectada
 
+  // --- Interconexión de Variables Demográficas al Modelo Matemático ---
+  // El código original tenía los sliders en UI pero no alteraban la red de parámetros subyacentes.
+  const derivedDensityCurrent = Math.min(1.0, densityCurrent * (formalityRate / 0.92) * (laborParticipation / 0.68));
+  const derivedDensityReform = Math.min(1.0, densityReform * (formalityRate / 0.92) * (laborParticipation / 0.68));
+  const derivedMortality = Math.max(0.005, mortality * (15 / lifeExpect) * (1 - (womenShare - 0.48) * 0.2));
+  const derivedActiveGrowth = activeGrowth - (privateGrowth - 0.015) * 0.2;
+  const derivedDependency = initialDependency * (1 + (urbanization - 0.63) * 0.3);
+
   const currentParams = {
     contributionRate: contributionCurrent, replacementRate: replacementCurrent,
-    retirementAge: retAgeCurrent, inflation, realWageGrowth, activeGrowth,
-    density: densityCurrent, pensionIndexation: indexationCurrent,
-    mortality, initialDependency, reserve0, horizonYear, reformYear,
+    retirementAge: retAgeCurrent, inflation, realWageGrowth, activeGrowth: derivedActiveGrowth,
+    density: derivedDensityCurrent, pensionIndexation: indexationCurrent,
+    mortality: derivedMortality, initialDependency: derivedDependency, reserve0, horizonYear, reformYear,
   };
   const reformParams = {
     contributionRate: contributionReform, replacementRate: replacementReform,
-    retirementAge: retAgeReform, inflation, realWageGrowth, activeGrowth,
-    density: densityReform, pensionIndexation: indexationReform,
-    mortality, initialDependency, reserve0, horizonYear, reformYear,
+    retirementAge: retAgeReform, inflation, realWageGrowth, activeGrowth: derivedActiveGrowth,
+    density: derivedDensityReform, pensionIndexation: indexationReform,
+    mortality: derivedMortality, initialDependency: derivedDependency, reserve0, horizonYear, reformYear,
   };
 
   const baselineSeries = useMemo(
