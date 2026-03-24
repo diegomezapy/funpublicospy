@@ -177,8 +177,13 @@ const SimuladorPensionPanel = ({ personData, personKpis, cedula }) => {
     const tasaImplicita = totalVPContrib !== 0 ? totalVPBen / totalVPContrib : null;
 
     return {
-        añosFull, salariesNominalFull, salariesRealFull, salariesRevFull, 
-        contribFull, pensionNominalFull, pensionRealFull,
+        añosFull, 
+        salariesNominalFull: salariesNominalFull.map(v => v !== null ? v / 12 : null), 
+        salariesRealFull: salariesRealFull.map(v => v !== null ? v / 12 : null), 
+        salariesRevFull: salariesRevFull.map(v => v !== null ? v / 12 : null), 
+        contribFull: contribFull.map(v => v !== null ? v / 12 : null), 
+        pensionNominalFull: pensionNominalFull.map(v => v !== null ? v / 12 : null), 
+        pensionRealFull: pensionRealFull.map(v => v !== null ? v / 12 : null),
         pensionNoUpdate, pensionBenefitNominal, totalVPContrib, totalVPBen, tasaImplicita, formulaText,
         anioRetiro, edadAlRetiro: anioRetiro - anioNacimiento, antiguedadAlRetiro: anioRetiro - anioInicioAportes
     };
@@ -267,7 +272,7 @@ const SimuladorPensionPanel = ({ personData, personKpis, cedula }) => {
     scales: {
       x: { title: { display: true, text: 'Año' } },
       y: { 
-        title: { display: true, text: 'Ingresos / Contribuciones (PYG)' },
+        title: { display: true, text: 'Promedio Mensual (PYG)' },
         ticks: { callback: function(value) { return new Intl.NumberFormat('es-PY', { notation: "compact", compactDisplay: "short" }).format(value); } }
       }
     }
@@ -382,8 +387,8 @@ const SimuladorPensionPanel = ({ personData, personKpis, cedula }) => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize:'0.95rem' }}>
                     <tbody>
                         <tr style={{borderBottom: '1px solid #f1f5f9'}}>
-                            <td style={{padding: '8px 0'}}>Monto Inicial de Pensión Nominal Prometido</td>
-                            <td style={{padding: '8px 0', fontWeight: 'bold', textAlign:'right'}}>{formatCurrency(sim.pensionBenefitNominal)}</td>
+                            <td style={{padding: '8px 0'}}>Pensión Nominal Mensual Estimada</td>
+                            <td style={{padding: '8px 0', fontWeight: 'bold', textAlign:'right'}}>{formatCurrency(sim.pensionBenefitNominal / 12)}</td>
                         </tr>
                         <tr style={{borderBottom: '1px solid #f1f5f9'}}>
                             <td style={{padding: '8px 0'}}>Valor Presente de Contribuciones Pagadas (Aportes PVC)</td>
